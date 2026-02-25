@@ -104,6 +104,12 @@ struct llama_model_loader {
         const llama_model_kv_override * param_overrides_p,
         const llama_model_tensor_buft_override * param_tensor_buft_overrides_p);
 
+    llama_model_loader(
+        const unsigned char* bytes,
+        size_t bytes_len,
+        const llama_model_kv_override * param_overrides_p,
+        const llama_model_tensor_buft_override * param_tensor_buft_overrides_p);
+
     template<typename T>
     typename std::enable_if<std::is_integral<T>::value, bool>::type
     get_arr_n(const std::string & key, T & result, bool required = true);

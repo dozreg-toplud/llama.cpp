@@ -738,6 +738,14 @@ struct gguf_context * gguf_init_from_file_impl(FILE * file, struct gguf_init_par
     return ctx;
 }
 
+struct gguf_context * gguf_init_from_bytes(const unsigned char* bytes, size_t bytes_len, struct gguf_init_params params) {
+    (void)bytes;
+    (void)bytes_len;
+    (void)params;
+
+    return NULL;
+}
+
 struct gguf_context * gguf_init_from_file(const char * fname, struct gguf_init_params params) {
     FILE * file = ggml_fopen(fname, "rb");
 

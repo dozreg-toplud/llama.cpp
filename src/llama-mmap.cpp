@@ -178,6 +178,9 @@ struct llama_file::impl {
         init_fp(mode);
     }
 
+    impl(const unsigned char * bytes, size_t bytes_len) : size(bytes_len),
+        is_mem(true), mem(bytes) {}
+
 #ifdef __linux__
     bool init_fd() {
         fd = open(fname.c_str(), O_RDONLY | O_DIRECT);
@@ -210,6 +213,9 @@ struct llama_file::impl {
     }
 
     size_t tell() const {
+        if (is_mem) {
+            return mem_pos;
+        }
         if (fd == -1) {
             long ret = std::ftell(fp);
             if (ret == -1) {
@@ -227,6 +233,20 @@ struct llama_file::impl {
     }
 
     void seek(size_t offset, int whence) const {
+        if (is_mem) {
+            size_t base;
+            switch (whence) {
+                case SEEK_SET: base = 0;       break;
+                case SEEK_CUR: base = mem_pos; break;
+                case SEEK_END: base = size;    break;
+                default: throw std::runtime_error("invalid whence");
+            }
+            if (offset > size - base) {
+                throw std::runtime_error("seek past end");
+            }
+            mem_pos = offset + base;
+            return;
+        }
         off_t ret = 0;
         if (fd == -1) {
             ret = std::fseek(fp, (long) offset, whence);
@@ -240,6 +260,14 @@ struct llama_file::impl {
 
     void read_raw_unsafe(void * ptr, size_t len) {
         if (len == 0) {
+            return;
+        }
+        if (is_mem) {
+            //  read whatever we have, zero-pad everything else
+            const size_t to_read = std::min(len, size - mem_pos);
+            std::memcpy(reinterpret_cast<char *>(ptr), mem, to_read);
+            std::memset(reinterpret_cast<char *>(ptr) + to_read, 0, len - to_read);
+            mem_pos += to_read;
             return;
         }
         errno = 0;
@@ -294,6 +322,9 @@ struct llama_file::impl {
     }
 
     void read_aligned_chunk(void * dest, size_t size) {
+        if (is_mem) {
+            return read_raw_unsafe(dest, size);
+        }
         size_t offset = tell();
         off_t aligned_offset = offset & ~(alignment - 1);
         off_t offset_from_alignment = offset - aligned_offset;
@@ -335,6 +366,9 @@ struct llama_file::impl {
         if (len == 0) {
             return;
         }
+        if (is_mem) {
+            throw std::runtime_error(format("write error: bytes are read-only"));
+        }
         errno = 0;
         size_t ret = std::fwrite(ptr, len, 1, fp);
         if (ret != 1) {
@@ -369,10 +403,17 @@ struct llama_file::impl {
 
     FILE * fp{};
     size_t size{};
+    bool is_mem = false;
+    const unsigned char * mem = nullptr;
+    mutable size_t mem_pos = 0;
 };
 
 llama_file::llama_file(const char * fname, const char * mode, const bool use_direct_io) :
     pimpl(std::make_unique<impl>(fname, mode, use_direct_io)) {}
+
+llama_file::llama_file(const unsigned char * bytes, size_t bytes_len) :
+    pimpl(std::make_unique<impl>(bytes, bytes_len)) {}
+
 llama_file::~llama_file() = default;
 
 size_t llama_file::tell() const { return pimpl->tell(); }
