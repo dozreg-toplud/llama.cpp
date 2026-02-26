@@ -227,43 +227,31 @@ struct gguf_reader {
     gguf_reader(const unsigned char * bytes, size_t bytes_len)
         : is_mem(true), mem(bytes), size_bytes(bytes_len) {}
 
-    int seek(size_t offset, int whence) const {
-        if (!is_mem) {
-            return fseek(file, offset, whence);
+    int seek(long offset, int whence) const {
+        if (!is_mem) { return fseek(file, offset, whence); }
+        long base;
+        switch ( whence ) {
+            case SEEK_SET: base = 0;                break;
+            case SEEK_CUR: base = (long)mem_pos;    break;
+            case SEEK_END: base = (long)size_bytes; break;
+            default: return -1;
         }
-        size_t base;
-        switch (whence) {
-            case SEEK_SET: base = 0;       break;
-            case SEEK_CUR: base = mem_pos; break;
-            case SEEK_END: base = size_bytes;    break;
-            default: throw std::runtime_error("invalid whence");
-        }
-        if (offset > size_bytes - base) {
+        long np = base + offset;
+        if (np < 0 || (size_t)np > size_bytes) {
             return -1;
         }
-        mem_pos = offset + base;
+        mem_pos = (size_t)np;
         return 0;
     }
 
-    size_t tell() const {
-        if (is_mem) {
-            return mem_pos;
-        }
-        return ftell(file);
+    long int tell() const {
+        if (!is_mem) { return ftell(file); }
+        return (long int)mem_pos;
     }
         
     template <typename T>
     bool read(T & dst) const {
-        if (is_mem) {
-            if (mem_pos + sizeof(dst) > size_bytes ) {
-                mem_pos = size_bytes;
-                return false;
-            }
-            std::memcpy(reinterpret_cast<char *>(&dst), mem, sizeof(dst));
-            mem_pos += sizeof(dst);
-            return true;
-        }
-        return fread(&dst, 1, sizeof(dst), file) == sizeof(dst);
+        return read(reinterpret_cast<char *>(&dst), sizeof(dst));
     }
 
     template <typename T>
@@ -322,13 +310,11 @@ struct gguf_reader {
     }
 
     bool read(void * dst, const size_t size) const {
-        if (is_mem) {
-            const size_t to_read = std::min(size, size_bytes - mem_pos);
-            std::memcpy(dst, mem, to_read);
-            mem_pos += to_read;
-            return to_read == size;
-        }
-        return fread(dst, 1, size, file) == size;
+        if (!is_mem) { return fread(dst, 1, size, file) == size; }
+        const size_t to_read = std::min(size, size_bytes - mem_pos);
+        std::memcpy(dst, mem + mem_pos, to_read);
+        mem_pos += to_read;
+        return to_read == size;
     }
 };
 
