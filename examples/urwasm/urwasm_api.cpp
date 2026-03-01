@@ -4,10 +4,8 @@
 #include <cstring>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 #include "llama.h"
-#include "llama-model-loader.h"
 #include "llama-model.h"
 
 
@@ -103,18 +101,31 @@ extern "C" char *infer_c_string(const char *prompt, int *token_count)
     const int max_new = 64;  // XX reconsider limit
     std::string out;
 
-    int n_vocab = llama_vocab_n_tokens(vocab);
     int count = 0;
-    for (int step = 0; step < max_new; step++) {
-        const float * logits = llama_get_logits(g_ctx); // logits for last eval
 
-        llama_token next = greedy_next_token(logits, n_vocab);
+    llama_sampler_chain_params s_params = llama_sampler_chain_default_params();
+    llama_sampler * sampler = llama_sampler_chain_init(s_params);
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.9f, 1));
+    llama_sampler_chain_add(sampler, llama_sampler_init_penalties(
+        64,     // last n tokens to penalize
+        1.20f,  // repeat penalty (multiplicative)
+        0.00f,  // frequency penalty
+        0.00f   // present penalty
+    ));
+    llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.02f));
+    llama_sampler_chain_add(sampler, llama_sampler_init_dist(0xcafebabe));
+
+    for (int step = 0; step < max_new; step++) {
+
+        llama_token next = llama_sampler_sample(sampler, g_ctx, -1);
+        llama_sampler_accept(sampler, next);
         count++;
 
         if (next == llama_vocab_eos(vocab)) break;
 
         // detokenize piece
-        char piece[256];
+        char piece[4096];
         int n_piece = llama_token_to_piece(vocab, next, piece, (int)sizeof(piece), 0, true);
         if (n_piece > 0) out.append(piece, piece + n_piece);
 
