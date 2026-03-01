@@ -458,6 +458,11 @@ extern "C" {
                              const char ** paths,
                                  size_t    n_paths,
               struct llama_model_params    params);
+    
+    LLAMA_API struct llama_model * llama_model_load_from_bytes(
+                     const unsigned char * bytes,
+                                  size_t   bytes_len,
+               struct llama_model_params   params);
 
     LLAMA_API void llama_model_save_to_file(
             const struct llama_model * model,
