@@ -14,12 +14,22 @@
 static llama_model  * g_model = nullptr;
 static llama_context* g_ctx   = nullptr;
 
-extern "C" void load_gguf_bytes(uint8_t *bytes, uint32_t len)
+static void ggml_log_shhh(enum ggml_log_level level,
+    const char * text,
+    void * user_data)
+{
+    (void)level;
+    (void)text;
+    (void)user_data;
+}
+
+extern "C" void llama_cpp_init_from_gguf_bytes(uint8_t *bytes, uint32_t len)
 {
     if (g_ctx)   { llama_free(g_ctx); g_ctx = nullptr; }
     if (g_model) { llama_model_free(g_model); g_model = nullptr; }
 
     llama_backend_init();
+    llama_log_set(ggml_log_shhh, nullptr);
 
     llama_model_params mparams = llama_model_default_params();
     mparams.use_mmap     = false;
@@ -58,7 +68,7 @@ static llama_token greedy_next_token(const float * logits, int n_vocab)
     return (llama_token) best_i;
 }
 
-extern "C" char *infer_c_string(const char *prompt)
+extern "C" char *infer_c_string(const char *prompt, int *token_count)
 {
     if (!g_model || !g_ctx) return nullptr;
 
@@ -94,11 +104,12 @@ extern "C" char *infer_c_string(const char *prompt)
     std::string out;
 
     int n_vocab = llama_vocab_n_tokens(vocab);
-
+    int count = 0;
     for (int step = 0; step < max_new; step++) {
         const float * logits = llama_get_logits(g_ctx); // logits for last eval
 
         llama_token next = greedy_next_token(logits, n_vocab);
+        count++;
 
         if (next == llama_vocab_eos(vocab)) break;
 
@@ -128,5 +139,6 @@ extern "C" char *infer_c_string(const char *prompt)
     if (!cstr) return nullptr;
     std::memcpy(cstr, out.data(), out.size());
     cstr[out.size()] = '\0';
+    *token_count = count;
     return cstr;
 }
