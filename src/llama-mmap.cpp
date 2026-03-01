@@ -265,7 +265,7 @@ struct llama_file::impl {
         if (is_mem) {
             //  read whatever we have, zero-pad everything else
             const size_t to_read = std::min(len, size - mem_pos);
-            std::memcpy(reinterpret_cast<char *>(ptr), mem, to_read);
+            std::memcpy(ptr, mem + mem_pos, to_read);
             std::memset(reinterpret_cast<char *>(ptr) + to_read, 0, len - to_read);
             mem_pos += to_read;
             return;
@@ -363,11 +363,11 @@ struct llama_file::impl {
     }
 
     void write_raw(const void * ptr, size_t len) const {
-        if (len == 0) {
-            return;
-        }
         if (is_mem) {
             throw std::runtime_error(format("write error: bytes are read-only"));
+        }
+        if (len == 0) {
+            return;
         }
         errno = 0;
         size_t ret = std::fwrite(ptr, len, 1, fp);
@@ -385,6 +385,9 @@ struct llama_file::impl {
     }
 
     ~impl() {
+        if (is_mem) {
+            return;
+        }
         if (fd != -1) {
             close(fd);
         } else {
