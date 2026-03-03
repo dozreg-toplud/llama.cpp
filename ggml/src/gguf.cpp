@@ -326,15 +326,7 @@ template<typename T>
 bool gguf_read_emplace_helper(const struct gguf_reader & gr, std::vector<struct gguf_kv> & kv, const std::string & key, const bool is_array, const size_t n) {
     if (is_array) {
         std::vector<T> value;
-        try {
-            if (!gr.read(value, n)) {
-                return false;
-            }
-        } catch (std::length_error &) {
-            GGML_LOG_ERROR("%s: encountered length_error while reading value for key '%s'\n", __func__, key.c_str());
-            return false;
-        } catch (std::bad_alloc &) {
-            GGML_LOG_ERROR("%s: encountered bad_alloc error while reading value for key '%s'\n", __func__, key.c_str());
+        if (!gr.read(value, n)) {
             return false;
         }
         kv.emplace_back(key, value);
@@ -449,15 +441,7 @@ gguf_init_from_gguf_reader(gguf_reader gr, struct gguf_init_params params) {
             bool        is_array = false;
             uint64_t    n        = 1;
 
-            try {
-                ok = ok && gr.read(key);
-            } catch (std::length_error &) {
-                GGML_LOG_ERROR("%s: encountered length_error while reading key %" PRIi64 "\n", __func__, i);
-                ok = false;
-            } catch (std::bad_alloc &) {
-                GGML_LOG_ERROR("%s: encountered bad_alloc error while reading key %" PRIi64 "\n", __func__, i);
-                ok = false;
-            }
+            ok = ok && gr.read(key);
             for (size_t j = 0; ok && j < ctx->kv.size(); ++j) {
                 if (key == ctx->kv[j].key) {
                     GGML_LOG_ERROR("%s: duplicate key '%s' for tensors %zu and %" PRIi64 " \n", __func__, key.c_str(), j, i);
@@ -524,15 +508,7 @@ gguf_init_from_gguf_reader(gguf_reader gr, struct gguf_init_params params) {
         // tensor name
         {
             std::string name;
-            try {
-                ok = ok && gr.read(name);
-            } catch (std::length_error &) {
-                GGML_LOG_ERROR("%s: encountered length_error while reading tensor name %" PRIi64 "\n", __func__, i);
-                ok = false;
-            } catch (std::bad_alloc &) {
-                GGML_LOG_ERROR("%s: encountered bad_alloc error while reading tensor name %" PRIi64 "\n", __func__, i);
-                ok = false;
-            }
+            ok = ok && gr.read(name);
             if (name.length() >= GGML_MAX_NAME) {
                 GGML_LOG_ERROR("%s: tensor name %" PRIi64 " is too long: %zu >= %d\n", __func__, i, name.length(), GGML_MAX_NAME);
                 ok = false;
@@ -1373,7 +1349,8 @@ struct gguf_writer_file final : public gguf_writer_base {
         const auto ret = fputc(real_val, file);
         written_bytes++;
         if (ret != real_val) {
-            throw std::runtime_error("unexpected fputc result '" + std::to_string(ret) + "' instead of '" + std::to_string((int)real_val) + "'");
+            std::fprintf(stderr, "fatal: unexpected fputc result '%d' instead of '%d'\n", ret, real_val);
+            std::abort();
         }
     }
 
@@ -1381,7 +1358,8 @@ struct gguf_writer_file final : public gguf_writer_base {
         const auto ret = fwrite(val.data(), 1, val.size(), file);
         written_bytes += val.size();
         if (ret != val.size()) {
-            throw std::runtime_error("unexpected fwrite number of bytes written, '" + std::to_string(ret) + "' instead of '" + std::to_string(val.size()) + "'");
+            std::fprintf(stderr, "unexpected fwrite number of bytes written, '%zu' instead of '%zu'\n", ret, val.size());
+            std::abort();
         }
     }
 
@@ -1456,14 +1434,8 @@ bool gguf_write_to_file(const struct gguf_context * ctx, const char * fname, boo
         return false;
     }
 
-    try {
-        gguf_writer_file gw(file);
-        gguf_write_out(ctx, gw, only_meta);
-    } catch (const std::runtime_error& ex) {
-        GGML_LOG_ERROR("%s: failed to write GGUF data into '%s': %s\n", __func__, fname, ex.what());
-        fclose(file);
-        return false;
-    }
+    gguf_writer_file gw(file);
+    gguf_write_out(ctx, gw, only_meta);
 
     fclose(file);
     return true;

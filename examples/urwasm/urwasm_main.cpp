@@ -68,9 +68,9 @@ int main(int argc, char **argv)
     const uint64_t t1 = now_ns();
     print_elapsed_ms("init done:", t0, t1);
 
-    const char *prompt = "Q: What is the capital of the United Kingdom?\nA:";
+    const char *prompt = "Q: What is the capital of the United Kingdom?\nA: ";
 
-    std::fprintf(stderr, "prompt: %s\r\nend of prompt\r\n", prompt);
+    std::fprintf(stderr, "prompt:\r\n%s\r\nend of prompt\r\n", prompt);
     
     int token_count = 0;
 

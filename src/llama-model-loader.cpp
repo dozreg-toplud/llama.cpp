@@ -76,13 +76,13 @@ static std::vector<std::string> llama_get_list_splits(const std::string & path, 
     {
         int ret = llama_split_prefix(buf.data(), buf.size(), path.c_str(), idx, n_split);
         if (!ret) {
-            throw std::runtime_error(format("invalid split file name: %s", path.c_str()));
+            std::abort();
         }
         split_prefix = std::string(buf.data(), ret);
     }
 
     if (split_prefix.empty()) {
-        throw std::runtime_error(format("invalid split file: %s", path.c_str()));
+        std::abort();
     }
 
     for (int idx = 0; idx < n_split; ++idx) {
@@ -154,8 +154,7 @@ namespace GGUFMeta {
             const enum gguf_type kt = gguf_get_kv_type(ctx, k);
 
             if (kt != GKV::gt) {
-                throw std::runtime_error(format("key %s has wrong type %s but expected type %s",
-                    gguf_get_key(ctx, k), gguf_type_name(kt), gguf_type_name(GKV::gt)));
+                std::abort();
             }
             return GKV::getter(ctx, k);
         }
@@ -190,9 +189,7 @@ namespace GGUFMeta {
                     } break;
                     default:
                         // Shouldn't be possible to end up here, but just in case...
-                        throw std::runtime_error(
-                            format("Unsupported attempt to override %s type for metadata key %s\n",
-                                override_type_to_str(ovrd->tag), ovrd->key));
+                        std::abort();
                 }
                 return true;
             }
@@ -267,7 +264,7 @@ namespace GGUFMeta {
 
         if (kid < 0) {
             if (required) {
-                throw std::runtime_error(format("key not found in model: %s", key.c_str()));
+                std::abort();
             }
             return false;
         }
@@ -295,7 +292,7 @@ namespace GGUFMeta {
 
         if (kid < 0 || gguf_get_kv_type(ctx, kid) != GGUF_TYPE_ARRAY) {
             if (required) {
-                throw std::runtime_error(format("array key not found in model: %s", key.c_str()));
+                std::abort();
             }
             return false;
         }
@@ -310,7 +307,7 @@ namespace GGUFMeta {
             case GGUF_TYPE_FLOAT32: GGML_ASSERT((std::is_same<T,       float>::value)); break;
             case GGUF_TYPE_STRING:  GGML_ASSERT((std::is_same<T, std::string>::value)); break;
             default:
-                throw std::runtime_error(format("%s is not a string/float32/uint32/int32 array", key.c_str()));
+                std::abort();
         }
 
         if constexpr (std::is_same<T, std::string>::value) {
@@ -336,7 +333,7 @@ namespace GGUFMeta {
 
         if (kid < 0 || gguf_get_kv_type(ctx, kid) != GGUF_TYPE_ARRAY) {
             if (required) {
-                throw std::runtime_error(format("array key not found in model: %s", key.c_str()));
+                std::abort();
             }
             return false;
         }
@@ -352,11 +349,11 @@ namespace GGUFMeta {
             case GGUF_TYPE_FLOAT32: GGML_ASSERT((std::is_same<T,       float>::value)); break;
             case GGUF_TYPE_STRING:  GGML_ASSERT((std::is_same<T, std::string>::value)); break;
             default:
-                throw std::runtime_error(format("%s is not a string/float32/uint32/int32 array", key.c_str()));
+                std::abort();
         }
 
         if (arr_info.length > N_MAX) {
-            throw std::runtime_error(format("array length %u for key %s exceeds max %u", (uint32_t) arr_info.length, key.c_str(), (uint32_t) N_MAX));
+            std::abort();
         }
 
         if constexpr (std::is_same<T, std::string>::value) {
@@ -396,7 +393,7 @@ namespace GGUFMeta {
         const bool found = GGUFMeta::GKV<T>::set(meta.get(), key, result, override);
 
         if (required && !found) {
-            throw std::runtime_error(format("key not found in model: %s", key.c_str()));
+            std::abort();
         }
 
         return found;
@@ -431,13 +428,13 @@ namespace GGUFMeta {
 
         if (kid < 0) {
             if (required) {
-                throw std::runtime_error(format("key not found in model: %s", key.c_str()));
+                std::abort();
             }
             return false;
         }
 
         if (n > N_MAX) {
-            throw std::runtime_error(format("n > N_MAX: %u > %u for key %s", (uint32_t) n, (uint32_t) N_MAX, key.c_str()));
+            std::abort();
         }
 
         if (gguf_get_kv_type(meta.get(), kid) == GGUF_TYPE_ARRAY) {
@@ -445,7 +442,7 @@ namespace GGUFMeta {
                 GGUFMeta::GKV<GGUFMeta::ArrayInfo>::get_kv(meta.get(), kid);
 
             if (n != arr_info.length) {
-                throw std::runtime_error(format("key %s has wrong array length; expected %u, got %u", key.c_str(), n, (uint32_t) arr_info.length));
+                std::abort();
             }
 
             return get_arr(key, result, required);
@@ -477,15 +474,15 @@ namespace GGUFMeta {
 
         if (id < 0) {
             if (required) {
-                throw std::runtime_error(format("key not found in model: %s", key.c_str()));
+                std::abort();
             }
             return false;
         }
 
-        // throw and error if type is an array
+        // std::abort();
         if (gguf_get_kv_type(meta.get(), id) == GGUF_TYPE_ARRAY) {
             if (required) {
-                throw std::runtime_error(format("expected scalar, found array for key: %s", key.c_str()));
+                std::abort();
             }
             return false;
         }
@@ -527,7 +524,7 @@ llama_model_loader::llama_model_loader(
     meta.reset(gguf_init_from_bytes(bytes, bytes_len, params));
 
     if (!meta) {
-        throw std::runtime_error(format("%s: failed to load model from bytes", __func__));
+        std::abort();
     }
 
     get_key(llm_kv(LLM_KV_GENERAL_ARCHITECTURE), arch_name, false);
@@ -543,7 +540,7 @@ llama_model_loader::llama_model_loader(
         std::string tensor_name = std::string(cur->name);
         // make sure there is no duplicated tensor names
         if (weights_map.find(tensor_name) != weights_map.end()) {
-            throw std::runtime_error(format("invalid model: tensor '%s' is duplicated", ggml_get_name(cur)));
+            std::abort();
         }
         n_elements += ggml_nelements(cur);
         n_bytes    += ggml_nbytes(cur);
@@ -697,7 +694,7 @@ llama_model_loader::llama_model_loader(
 
     meta.reset(gguf_init_from_file(fname.c_str(), params));
     if (!meta) {
-        throw std::runtime_error(format("%s: failed to load model from %s", __func__, fname.c_str()));
+        std::abort();
     }
 
     get_key(llm_kv(LLM_KV_GENERAL_ARCHITECTURE), arch_name, false);
@@ -727,7 +724,7 @@ llama_model_loader::llama_model_loader(
         std::string tensor_name = std::string(cur->name);
         // make sure there is no duplicated tensor names
         if (weights_map.find(tensor_name) != weights_map.end()) {
-            throw std::runtime_error(format("invalid model: tensor '%s' is duplicated", ggml_get_name(cur)));
+            std::abort();
         }
         n_elements += ggml_nelements(cur);
         n_bytes    += ggml_nbytes(cur);
@@ -743,7 +740,7 @@ llama_model_loader::llama_model_loader(
         const std::string kv_split_no = llm_kv(LLM_KV_SPLIT_NO);
         get_key(kv_split_no, idx);
         if (idx != 0) {
-            throw std::runtime_error(format("illegal split file idx: %d (file: %s), model must be loaded with the first split", idx, fname.c_str()));
+            std::abort();
         }
 
         // generate list of splits if needed
@@ -753,7 +750,7 @@ llama_model_loader::llama_model_loader(
 
         // in case user give a custom list of splits, check if it matches the expected number
         if (n_split != (uint16_t)splits.size()) {
-            throw std::runtime_error(format("invalid split count, given: %zu splits, but expected %d", splits.size(), n_split));
+            std::abort();
         }
 
         if (trace > 0) {
@@ -770,18 +767,18 @@ llama_model_loader::llama_model_loader(
             };
             gguf_context_ptr ctx_gguf { gguf_init_from_file(fname_split, split_params) };
             if (!ctx_gguf) {
-                throw std::runtime_error(format("%s: failed to load GGUF split from %s", __func__, fname_split));
+                std::abort();
             }
 
             // check idx
             {
                 const int kid = gguf_find_key(ctx_gguf.get(), kv_split_no.c_str());
                 if (kid < 0) {
-                    throw std::runtime_error(format("missing key %s in GGUF split %s", kv_split_no.c_str(), fname_split));
+                    std::abort();
                 }
                 int idx_gguf = gguf_get_val_u16(ctx_gguf.get(), kid);
                 if (idx_gguf != idx) {
-                    throw std::runtime_error(format("invalid split file idx: %d (file: %s), expected %d", idx_gguf, fname_split, idx));
+                    std::abort();
                 }
             }
 
@@ -793,7 +790,7 @@ llama_model_loader::llama_model_loader(
                 std::string tensor_name = std::string(cur->name);
                 // make sure there is no duplicated tensor names
                 if (weights_map.find(tensor_name) != weights_map.end()) {
-                    throw std::runtime_error(format("invalid model: tensor '%s' is duplicated", ggml_get_name(cur)));
+                    std::abort();
                 }
                 n_elements += ggml_nelements(cur);
                 n_bytes    += ggml_nbytes(cur);
@@ -807,7 +804,7 @@ llama_model_loader::llama_model_loader(
         {
             const int n_tensors_loaded = (int) weights_map.size();
             if (n_tensors != n_tensors_loaded) {
-                throw std::runtime_error(format("corrupted model: %d tensors expected but %d found", n_tensors, n_tensors_loaded));
+                std::abort();
             }
         }
 
@@ -954,7 +951,7 @@ const llama_model_loader::llama_tensor_weight * llama_model_loader::get_weight(c
 const llama_model_loader::llama_tensor_weight & llama_model_loader::require_weight(const char * name) const {
     const llama_tensor_weight * weight = get_weight(name);
     if (!weight) {
-        throw std::runtime_error(format("%s: tensor '%s' not found", __func__, name));
+        std::abort();
     }
     return *weight;
 }
@@ -970,7 +967,7 @@ struct ggml_tensor * llama_model_loader::get_tensor_meta(const char * name) cons
 struct ggml_tensor * llama_model_loader::require_tensor_meta(const std::string & name) const {
     struct ggml_tensor * tensor = get_tensor_meta(name.c_str());
     if (!tensor) {
-        throw std::runtime_error(format("%s: tensor '%s' not found", __func__, name.c_str()));
+        std::abort();
     }
     return tensor;
 }
@@ -982,7 +979,7 @@ const struct ggml_tensor * llama_model_loader::check_tensor_dims(const std::stri
         if (!required) {
             return NULL;
         }
-        throw std::runtime_error(format("%s: tensor '%s' not found", __func__, name.c_str()));
+        std::abort();
     }
 
     {
@@ -994,11 +991,7 @@ const struct ggml_tensor * llama_model_loader::check_tensor_dims(const std::stri
             }
         }
         if (!is_ok) {
-            throw std::runtime_error(
-                    format("%s: tensor '%s' has wrong shape; expected %s, got %s",
-                        __func__, name.c_str(),
-                        llama_format_tensor_shape(ne).c_str(),
-                        llama_format_tensor_shape(cur).c_str()));
+            std::abort();
         }
     }
 
@@ -1036,7 +1029,7 @@ struct ggml_tensor * llama_model_loader::create_tensor_as_view(struct ggml_conte
     }
 
     if (cur->type != base->type) {
-        throw std::runtime_error(format("%s: tensor '%s' has wrong type; expected %s, got %s", __func__, name.c_str(), ggml_type_name(base->type), ggml_type_name(cur->type)));
+        std::abort();
     }
 
     std::array<int64_t, GGML_MAX_DIMS> dims;
@@ -1058,7 +1051,7 @@ struct ggml_tensor * llama_model_loader::create_tensor_as_view(struct ggml_conte
 
 void llama_model_loader::done_getting_tensors() const {
     if (n_created != n_tensors) {
-        throw std::runtime_error(format("%s: wrong number of tensors; expected %d, got %d", __func__, n_tensors, n_created));
+        std::abort();
     }
 }
 
@@ -1131,7 +1124,7 @@ void llama_model_loader::load_data_for(struct ggml_tensor * cur) const {
     }
 
     if (check_tensors && !ggml_validate_row_data(cur->type, cur->data, ggml_nbytes(cur))) {
-        throw std::runtime_error(format("tensor '%s' has invalid data", ggml_get_name(cur)));
+        std::abort();
     }
 }
 
@@ -1358,7 +1351,7 @@ bool llama_model_loader::load_all_data(
                     file->read_raw(read_buf.data(), n_size);
                     ggml_backend_tensor_set(cur, read_buf.data(), 0, n_size);
                     if (check_tensors && !ggml_validate_row_data(cur->type, read_buf.data(), n_size)) {
-                        throw std::runtime_error(format("tensor '%s' has invalid data", ggml_get_name(cur)));
+                        std::abort();
                     }
                 }
             }
@@ -1387,7 +1380,7 @@ bool llama_model_loader::load_all_data(
         }
     }
     if (validation_failed) {
-        throw std::runtime_error("found tensors with invalid data");
+        std::abort();
     }
 
     // check if this is the last call and do final cleanup

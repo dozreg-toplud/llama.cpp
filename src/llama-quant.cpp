@@ -115,11 +115,11 @@ static void llama_tensor_dequantize_impl(
     const ggml_type_traits * qtype = ggml_get_type_traits(tensor->type);
     if (ggml_is_quantized(tensor->type)) {
         if (qtype->to_float == NULL) {
-            throw std::runtime_error(format("type %s unsupported for integer quantization: no dequantization available", ggml_type_name(tensor->type)));
+            std::abort();
         }
     } else if (tensor->type != GGML_TYPE_F16 &&
                tensor->type != GGML_TYPE_BF16) {
-        throw std::runtime_error(format("cannot dequantize/convert tensor type %s", ggml_type_name(tensor->type)));
+        std::abort();
     }
 
     if (nthread < 2) {
@@ -193,10 +193,10 @@ static ggml_type llama_tensor_get_type(quantize_state_impl & qs, ggml_type new_t
             // for getting the current layer as I initially thought, and we need to resort to parsing the
             // tensor name.
             if (sscanf(name, "blk.%d.", &i_layer) != 1) {
-                throw std::runtime_error(format("Failed to determine layer for tensor %s", name));
+                std::abort();
             }
             if (i_layer < 0 || i_layer >= n_layer) {
-                throw std::runtime_error(format("Bad layer %d for tensor %s. Must be in [0, %d)", i_layer, name, n_layer));
+                std::abort();
             }
         }
         return std::make_pair(i_layer, n_layer);
@@ -430,7 +430,7 @@ static size_t llama_tensor_quantize_impl(enum ggml_type new_type, const float * 
         // single-thread
         size_t new_size = ggml_quantize_chunk(new_type, f32_data, new_data, 0, nrows, n_per_row, imatrix);
         if (!ggml_validate_row_data(new_type, new_data, new_size)) {
-            throw std::runtime_error("quantized data validation failed");
+            std::abort();
         }
         return new_size;
     }
@@ -474,7 +474,7 @@ static size_t llama_tensor_quantize_impl(enum ggml_type new_type, const float * 
     for (auto & w : workers) { w.join(); }
     workers.clear();
     if (!valid) {
-        throw std::runtime_error("quantized data validation failed");
+        std::abort();
     }
     return new_size;
 }
@@ -532,7 +532,7 @@ static void llama_model_quantize_impl(const std::string & fname_inp, const std::
         case LLAMA_FTYPE_MOSTLY_IQ3_S:   default_type = GGML_TYPE_IQ3_S;   break;
         case LLAMA_FTYPE_MOSTLY_IQ3_M:   default_type = GGML_TYPE_IQ3_S;   break;
 
-        default: throw std::runtime_error(format("invalid output file type %d\n", ftype));
+        default: std::abort();
     }
 
     int nthread = params->nthread;
@@ -580,7 +580,7 @@ static void llama_model_quantize_impl(const std::string & fname_inp, const std::
             for (const auto & kv : *imatrix_data) {
                 for (float f : kv.second) {
                     if (!std::isfinite(f)) {
-                        throw std::runtime_error(format("imatrix contains non-finite value %f\n", f));
+                        std::abort();
                     }
                 }
             }
@@ -901,7 +901,7 @@ static void llama_model_quantize_impl(const std::string & fname_inp, const std::
                             case GGML_TYPE_Q4_K:   new_type = GGML_TYPE_Q5_0;   break;
                             case GGML_TYPE_Q5_K:   new_type = GGML_TYPE_Q5_1;   break;
                             case GGML_TYPE_Q6_K:   new_type = GGML_TYPE_Q8_0;   break;
-                            default: throw std::runtime_error("\nUnsupported tensor size encountered\n");
+                            default: std::abort();
                         }
                         if (tensor->ne[0] % ggml_blck_size(new_type) != 0) {
                             new_type = GGML_TYPE_F16;
@@ -969,8 +969,7 @@ static void llama_model_quantize_impl(const std::string & fname_inp, const std::
                             // since many people will miss the error and not realize that most of the model is being quantized without an imatrix
                             // tok_embd should be ignored in this case, since it always causes this warning
                             if (name != tn(LLM_TENSOR_TOKEN_EMBD, "weight")) {
-                                throw std::runtime_error(format("imatrix size %d is different from tensor size %d for %s",
-                                        int(it->second.size()), int(tensor->ne[0]*tensor->ne[2]), tensor->name));
+                                std::abort();
                             }
                         }
                     }
@@ -980,7 +979,7 @@ static void llama_model_quantize_impl(const std::string & fname_inp, const std::
                     LLAMA_LOG_ERROR("Missing importance matrix for tensor %s in a very low-bit quantization\n", tensor->name);
                     LLAMA_LOG_ERROR("The result will be garbage, so bailing out\n");
                     LLAMA_LOG_ERROR("============================================================\n\n");
-                    throw std::runtime_error(format("Missing importance matrix for tensor %s in a very low-bit quantization", tensor->name));
+                    std::abort();
                 }
 
                 float * f32_data;
@@ -988,7 +987,7 @@ static void llama_model_quantize_impl(const std::string & fname_inp, const std::
                 if (tensor->type == GGML_TYPE_F32) {
                     f32_data = (float *) tensor->data;
                 } else if (ggml_is_quantized(tensor->type) && !params->allow_requantize) {
-                    throw std::runtime_error(format("requantizing from type %s is disabled", ggml_type_name(tensor->type)));
+                    std::abort();
                 } else {
                     llama_tensor_dequantize_impl(tensor, f32_conv_buf, workers, nelements, nthread);
                     f32_data = (float *) f32_conv_buf.data();
@@ -1108,12 +1107,6 @@ uint32_t llama_model_quantize(
         const char * fname_inp,
         const char * fname_out,
         const llama_model_quantize_params * params) {
-    try {
-        llama_model_quantize_impl(fname_inp, fname_out, params);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: failed to quantize: %s\n", __func__, err.what());
-        return 1;
-    }
-
+    llama_model_quantize_impl(fname_inp, fname_out, params);
     return 0;
 }

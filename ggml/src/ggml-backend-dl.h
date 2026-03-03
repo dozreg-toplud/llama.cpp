@@ -8,7 +8,6 @@
 #   include <windows.h>
 #   include <winevt.h>
 #else
-#    include <dlfcn.h>
 #    include <unistd.h>
 #endif
 #include <filesystem>
@@ -31,7 +30,7 @@ using dl_handle = void;
 
 struct dl_handle_deleter {
     void operator()(void * handle) {
-        dlclose(handle);
+        (void)handle;
     }
 };
 

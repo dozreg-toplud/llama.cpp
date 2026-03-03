@@ -88,7 +88,7 @@ llama_memory_recurrent::llama_memory_recurrent(
 
         ggml_context * ctx = ctx_for_buft(buft);
         if (!ctx) {
-            throw std::runtime_error("failed to create ggml context for rs cache");
+            std::abort();
         }
 
         ggml_tensor * r = ggml_new_tensor_1d(ctx, type_r, hparams.n_embd_r()*mem_size);
@@ -103,7 +103,7 @@ llama_memory_recurrent::llama_memory_recurrent(
     for (auto & [buft, ctx] : ctx_map) {
         ggml_backend_buffer_t buf = ggml_backend_alloc_ctx_tensors_from_buft(ctx.get(), buft);
         if (!buf) {
-            throw std::runtime_error("failed to allocate buffer for rs cache");
+            std::abort();
         }
         ggml_backend_buffer_clear(buf, 0);
         LLAMA_LOG_INFO("%s: %10s RS buffer size = %8.2f MiB\n", __func__, ggml_backend_buffer_name(buf), ggml_backend_buffer_get_size(buf)/1024.0/1024.0);
@@ -755,7 +755,7 @@ void llama_memory_recurrent::state_read(llama_io_read_i & io, llama_seq_id seq_i
         } else {
             seq_rm(seq_id, -1, -1);
         }
-        throw std::runtime_error("failed to restore kv cache");
+        std::abort();
     }
 }
 

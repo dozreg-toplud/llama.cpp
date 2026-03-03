@@ -32,7 +32,7 @@
 #include <float.h>
 #include <limits.h>
 #include <stdarg.h>
-#include <signal.h>
+// #include <signal.h>
 #if defined(__gnu_linux__)
 #include <syscall.h>
 #endif
@@ -547,7 +547,8 @@ int64_t ggml_time_us(void) {
 #endif
 
 int64_t ggml_cycles(void) {
-    return clock();
+    // return clock();
+    return ggml_time_us();
 }
 
 int64_t ggml_cycles_per_ms(void) {

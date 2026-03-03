@@ -83,11 +83,7 @@ llm_chat_template llm_chat_template_from_str(const std::string & name) {
 }
 
 llm_chat_template llm_chat_detect_template(const std::string & tmpl) {
-    try {
-        return llm_chat_template_from_str(tmpl);
-    } catch (const std::out_of_range &) {
-        // ignore
-    }
+    return llm_chat_template_from_str(tmpl);
 
     auto tmpl_contains = [&tmpl](const char * haystack) -> bool {
         return tmpl.find(haystack) != std::string::npos;

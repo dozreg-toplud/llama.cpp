@@ -78,14 +78,14 @@ static std::vector<llama_device_memory_data> llama_get_device_memory_data(
     llama_model * model = llama_model_load_from_file(path_model, mparams_copy);
     if (model == nullptr) {
         llama_log_set(ud.original_logger.callback, ud.original_logger.user_data);
-        throw std::runtime_error("failed to load model");
+        std::abort();
     }
 
     llama_context * ctx = llama_init_from_model(model, *cparams);
     if (ctx == nullptr) {
         llama_model_free(model);
         llama_log_set(ud.original_logger.callback, ud.original_logger.user_data);
-        throw std::runtime_error("failed to create llama_context from model");
+        std::abort();
     }
 
     std::vector<llama_device_memory_data> ret(model->devices.size());
@@ -121,7 +121,7 @@ static std::vector<llama_device_memory_data> llama_get_device_memory_data(
         if (free == 0 && total == 0) {
             ggml_backend_dev_t cpu_dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
             if (cpu_dev == nullptr) {
-                throw std::runtime_error(format("%s: no CPU backend found", __func__));
+                std::abort();
             }
             ggml_backend_dev_memory(cpu_dev, &free, &total);
         }
@@ -325,28 +325,28 @@ static void llama_params_fit_impl(
     }
 
     if (mparams->n_gpu_layers != default_mparams.n_gpu_layers) {
-        throw llama_params_fit_exception("n_gpu_layers already set by user to " + std::to_string(mparams->n_gpu_layers) + ", abort");
+        std::abort();
     }
     if (nd > 1) {
         if (!tensor_split) {
-            throw llama_params_fit_exception("did not provide a buffer to write the tensor_split to, abort");
+            std::abort();
         }
         if (mparams->tensor_split) {
             for (size_t id = 0; id < nd; id++) {
                 if (mparams->tensor_split[id] != 0.0f) {
-                    throw llama_params_fit_exception("model_params::tensor_split already set by user, abort");
+                    std::abort();
                 }
             }
         }
         if (mparams->split_mode == LLAMA_SPLIT_MODE_ROW) {
-            throw llama_params_fit_exception("changing weight allocation for LLAMA_SPLIT_MODE_ROW not implemented, abort");
+            std::abort();
         }
     }
     if (!tensor_buft_overrides) {
-        throw llama_params_fit_exception("did not provide buffer to set tensor_buft_overrides, abort");
+        std::abort();
     }
     if (mparams->tensor_buft_overrides && (mparams->tensor_buft_overrides->pattern || mparams->tensor_buft_overrides->buft)) {
-        throw llama_params_fit_exception("model_params::tensor_buft_overrides already set by user, abort");
+        std::abort();
     }
 
     // step 3: iteratively fill the back to front with "dense" layers
@@ -357,7 +357,7 @@ static void llama_params_fit_impl(
     auto get_overflow_pattern = [&](const size_t il, const layer_fraction_t lf) -> const char * {
         constexpr size_t n_strings = 1000;
         if (il >= n_strings) {
-            throw std::runtime_error("at most " + std::to_string(n_strings) + " model layers are supported");
+            std::abort();
         }
         switch (lf) {
             case LAYER_FRACTION_ATTN: {
@@ -434,8 +434,7 @@ static void llama_params_fit_impl(
                     tensor_buft_overrides[itbo].buft    = nullptr;
                     itbo++;
                     mparams.tensor_buft_overrides = tensor_buft_overrides;
-                    throw llama_params_fit_exception("llama_max_tensor_buft_overrides() == "
-                        + std::to_string(ntbo) + " is insufficient for model");
+                    std::abort();
                 }
                 tensor_buft_overrides[itbo].pattern = get_overflow_pattern(il, il == il0 ? ngl_per_device[id].overflow_type : LAYER_FRACTION_MOE);
                 tensor_buft_overrides[itbo].buft = il == il0 ? overflow_bufts[id] : ggml_backend_cpu_buffer_type();
@@ -744,16 +743,9 @@ enum llama_params_fit_status llama_params_fit(
         size_t * margins, uint32_t n_ctx_min, enum ggml_log_level log_level) {
     const int64_t t0_us = llama_time_us();
     llama_params_fit_status status = LLAMA_PARAMS_FIT_STATUS_SUCCESS;
-    try {
-        llama_params_fit_impl(path_model, mparams, cparams, tensor_split, tensor_buft_overrides, margins, n_ctx_min, log_level);
-        LLAMA_LOG_INFO("%s: successfully fit params to free device memory\n", __func__);
-    } catch (const llama_params_fit_exception & e) {
-        LLAMA_LOG_WARN("%s: failed to fit params to free device memory: %s\n", __func__, e.what());
-        status = LLAMA_PARAMS_FIT_STATUS_FAILURE;
-    } catch (const std::runtime_error & e) {
-        LLAMA_LOG_ERROR("%s: encountered an error while trying to fit params to free device memory: %s\n", __func__, e.what());
-        status = LLAMA_PARAMS_FIT_STATUS_ERROR;
-    }
+    llama_params_fit_impl(path_model, mparams, cparams, tensor_split, tensor_buft_overrides, margins, n_ctx_min, log_level);
+    LLAMA_LOG_INFO("%s: successfully fit params to free device memory\n", __func__);
+    
     const int64_t t1_us = llama_time_us();
     LLAMA_LOG_INFO("%s: fitting params to free memory took %.2f seconds\n", __func__, (t1_us - t0_us) * 1e-6);
     return status;
@@ -833,49 +825,26 @@ static int llama_model_load(const std::string & fname, std::vector<std::string> 
 
     model.t_start_us = tm.t_start_us;
 
-    try {
-        llama_model_loader ml(fname, splits, params.use_mmap, params.use_direct_io, params.check_tensors, params.no_alloc, params.kv_overrides, params.tensor_buft_overrides);
+    llama_model_loader ml(fname, splits, params.use_mmap, params.use_direct_io, params.check_tensors, params.no_alloc, params.kv_overrides, params.tensor_buft_overrides);
 
-        ml.print_info();
-
-        model.hparams.vocab_only = params.vocab_only;
-        model.hparams.no_alloc   = params.no_alloc;
-
-        try {
-            model.load_arch(ml);
-        } catch(const std::exception & e) {
-            throw std::runtime_error("error loading model architecture: " + std::string(e.what()));
-        }
-        try {
-            model.load_hparams(ml);
-        } catch(const std::exception & e) {
-            throw std::runtime_error("error loading model hyperparameters: " + std::string(e.what()));
-        }
-        if (model.arch == LLM_ARCH_CLIP) {
-            throw std::runtime_error("CLIP cannot be used as main model, use it with --mmproj instead");
-        }
-        try {
-            model.load_vocab(ml);
-        } catch(const std::exception & e) {
-            throw std::runtime_error("error loading model vocabulary: " + std::string(e.what()));
-        }
-
-        model.load_stats(ml);
-        model.print_info();
-
-        if (params.vocab_only) {
-            LLAMA_LOG_INFO("%s: vocab only - skipping tensors\n", __func__);
-            return 0;
-        }
-
-        if (!model.load_tensors(ml)) {
-            return -2;
-        }
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading model: %s\n", __func__, err.what());
-        return -1;
+    ml.print_info();
+    model.hparams.vocab_only = params.vocab_only;
+    model.hparams.no_alloc   = params.no_alloc;
+    model.load_arch(ml);
+    model.load_hparams(ml);
+    if (model.arch == LLM_ARCH_CLIP) {
+        std::abort();
     }
-
+    model.load_vocab(ml);
+    model.load_stats(ml);
+    model.print_info();
+    if (params.vocab_only) {
+        LLAMA_LOG_INFO("%s: vocab only - skipping tensors\n", __func__);
+        return 0;
+    }
+    if (!model.load_tensors(ml)) {
+        return -2;
+    }
     return 0;
 }
 
@@ -888,49 +857,26 @@ static int llama_model_load(const unsigned char* bytes, size_t bytes_len, llama_
 
     model.t_start_us = tm.t_start_us;
 
-    try {
-        llama_model_loader ml(bytes, bytes_len, params.kv_overrides, params.tensor_buft_overrides);
-
-        ml.print_info();
-
-        model.hparams.vocab_only = params.vocab_only;
-        model.hparams.no_alloc   = params.no_alloc;
-
-        try {
-            model.load_arch(ml);
-        } catch(const std::exception & e) {
-            throw std::runtime_error("error loading model architecture: " + std::string(e.what()));
-        }
-        try {
-            model.load_hparams(ml);
-        } catch(const std::exception & e) {
-            throw std::runtime_error("error loading model hyperparameters: " + std::string(e.what()));
-        }
-        if (model.arch == LLM_ARCH_CLIP) {
-            throw std::runtime_error("CLIP cannot be used as main model, use it with --mmproj instead");
-        }
-        try {
-            model.load_vocab(ml);
-        } catch(const std::exception & e) {
-            throw std::runtime_error("error loading model vocabulary: " + std::string(e.what()));
-        }
-
-        model.load_stats(ml);
-        model.print_info();
-
-        if (params.vocab_only) {
-            LLAMA_LOG_INFO("%s: vocab only - skipping tensors\n", __func__);
-            return 0;
-        }
-
-        if (!model.load_tensors(ml)) {
-            return -2;
-        }
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading model: %s\n", __func__, err.what());
-        return -1;
+    llama_model_loader ml(bytes, bytes_len, params.kv_overrides, params.tensor_buft_overrides);
+    ml.print_info();
+    model.hparams.vocab_only = params.vocab_only;
+    model.hparams.no_alloc   = params.no_alloc;
+    model.load_arch(ml);
+    model.load_hparams(ml);
+    if (model.arch == LLM_ARCH_CLIP) {
+        std::abort();
     }
+    model.load_vocab(ml);
+    model.load_stats(ml);
+    model.print_info();
 
+    if (params.vocab_only) {
+        LLAMA_LOG_INFO("%s: vocab only - skipping tensors\n", __func__);
+        return 0;
+    }
+    if (!model.load_tensors(ml)) {
+        return -2;
+    }
     return 0;
 }
 

@@ -36,7 +36,7 @@ llama_context::llama_context(
 
     cparams.n_seq_max = std::max(1u, params.n_seq_max);
     if (cparams.n_seq_max > LLAMA_MAX_SEQ) {
-        throw std::runtime_error("n_seq_max must be <= " + std::to_string(LLAMA_MAX_SEQ));
+        std::abort();
     }
 
     cparams.n_threads        = params.n_threads;
@@ -70,7 +70,7 @@ llama_context::llama_context(
             const auto & config = params.samplers[i];
 
             if (llama_sampler_chain_get(config.sampler, -1) == nullptr) {
-                throw std::runtime_error("the backend samplers must be of type llama_sampler_chain");
+                std::abort();
             }
 
             if (set_sampler(config.seq_id, config.sampler)) {
@@ -180,7 +180,7 @@ llama_context::llama_context(
         cparams.n_ctx_seq = GGML_PAD(cparams.n_ctx_seq, 256);
 
         if (cparams.n_ctx_seq == 0) {
-            throw std::runtime_error("n_ctx_seq == 0");
+            std::abort();
         }
 
         if (cparams.n_ctx != cparams.n_ctx_seq * cparams.n_seq_max) {
@@ -215,7 +215,7 @@ llama_context::llama_context(
         for (auto * dev : model.devices) {
             ggml_backend_t backend = ggml_backend_dev_init(dev, nullptr);
             if (backend == nullptr) {
-                throw std::runtime_error(format("failed to initialize %s backend", ggml_backend_dev_name(dev)));
+                std::abort();
             }
             backends.emplace_back(backend);
         }
@@ -226,7 +226,7 @@ llama_context::llama_context(
             if (ggml_backend_dev_type(dev) == GGML_BACKEND_DEVICE_TYPE_ACCEL) {
                 ggml_backend_t backend = ggml_backend_dev_init(dev, nullptr);
                 if (backend == nullptr) {
-                    throw std::runtime_error(format("failed to initialize %s backend", ggml_backend_dev_name(dev)));
+                    std::abort();
                 }
                 backends.emplace_back(backend);
             }
@@ -235,7 +235,7 @@ llama_context::llama_context(
         // add CPU backend
         backend_cpu = ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr);
         if (backend_cpu == nullptr) {
-            throw std::runtime_error("failed to initialize CPU backend");
+            std::abort();
         }
         backends.emplace_back(backend_cpu);
 
@@ -256,7 +256,7 @@ llama_context::llama_context(
         // graph outputs buffer
         {
             if (output_reserve(params.n_seq_max) < params.n_seq_max) {
-                throw std::runtime_error("failed to reserve initial output buffer");
+                std::abort();
             }
 
             LLAMA_LOG_INFO("%s: %10s  output buffer size = %8.2f MiB\n", __func__,
@@ -343,7 +343,7 @@ llama_context::llama_context(
 
         if (!cparams.flash_attn) {
             if (ggml_is_quantized(params.type_v)) {
-                throw std::runtime_error("quantized V cache was requested, but this requires Flash Attention");
+                std::abort();
             }
         }
     }
@@ -409,7 +409,7 @@ void llama_context::sched_reserve() {
         LLAMA_LOG_DEBUG("%s: reserving full memory module\n", __func__);
         mctx = memory->init_full();
         if (!mctx) {
-            throw std::runtime_error("failed to initialize memory module");
+            std::abort();
         }
     }
 
@@ -422,7 +422,7 @@ void llama_context::sched_reserve() {
     if (cparams.auto_fa) {
         auto * gf = graph_reserve(1, n_seqs, n_outputs, mctx.get(), true);
         if (!gf) {
-            throw std::runtime_error("failed to split graph for Flash Attention check");
+            std::abort();
         }
 
         const size_t prefix_len = strlen(LLAMA_TENSOR_NAME_FATTN) + 1;
@@ -478,7 +478,7 @@ void llama_context::sched_reserve() {
                 gf = graph_reserve(n_tokens, n_seqs, n_tokens, mctx.get());
             }
             if (!gf) {
-                throw std::runtime_error("failed to allocate compute pp buffers");
+                std::abort();
             }
         }
 
@@ -490,7 +490,7 @@ void llama_context::sched_reserve() {
     {
         auto * gf = graph_reserve(n_seqs, n_seqs, n_seqs, mctx.get(), model.hparams.no_alloc);
         if (!gf) {
-            throw std::runtime_error("failed to allocate compute tg buffers");
+            std::abort();
         }
 
         n_splits_tg = ggml_backend_sched_get_n_splits(sched.get());
@@ -505,7 +505,7 @@ void llama_context::sched_reserve() {
         //
         auto * gf = graph_reserve(n_tokens, n_seqs, n_tokens, mctx.get(), model.hparams.no_alloc);
         if (!gf) {
-            throw std::runtime_error("failed to allocate compute pp buffers");
+            std::abort();
         }
     }
 
@@ -657,7 +657,7 @@ bool llama_context::memory_update(bool optimize) {
     {
         const auto mctx = memory->init_full();
         if (!mctx) {
-            throw std::runtime_error("failed to initialize memory context");
+            std::abort();
         }
 
         const uint32_t n_seqs = cparams.n_seq_max;
@@ -689,10 +689,10 @@ int64_t llama_context::output_resolve_row(int32_t i) const {
     if (i < 0) {
         j = n_outputs + i;
         if (j < 0) {
-            throw std::runtime_error(format("negative index out of range [0, %d)", n_outputs));
+            std::abort();
         }
     } else if ((size_t) i >= output_ids.size()) {
-        throw std::runtime_error(format("out of range [0, %zu)", output_ids.size()));
+        std::abort();
     } else {
         // use output_ids to translate the batch token index into a row number
         // that holds this token's data.
@@ -701,11 +701,11 @@ int64_t llama_context::output_resolve_row(int32_t i) const {
 
     if (j < 0) {
         // the batch token was not configured to output anything
-        throw std::runtime_error(format("batch.logits[%d] != true", i));
+        std::abort();
     }
 
     if (j >= n_outputs) {
-        throw std::runtime_error(format("corrupt output buffer (j=%" PRId64 ", n_outputs=%d)", j, n_outputs));
+        std::abort();
     }
 
     return j;
@@ -714,21 +714,12 @@ int64_t llama_context::output_resolve_row(int32_t i) const {
 float * llama_context::get_logits_ith(int32_t i) {
     output_reorder();
 
-    try {
-        if (logits.data == nullptr) {
-            throw std::runtime_error("no logits");
-        }
-
-        const int64_t j = output_resolve_row(i);
-        return logits.data + j*model.vocab.n_tokens();
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid logits id %d, reason: %s\n", __func__, i, err.what());
-#ifndef NDEBUG
-        GGML_ABORT("fatal error");
-#else
-        return nullptr;
-#endif
+    if (logits.data == nullptr) {
+        std::abort();
     }
+
+    const int64_t j = output_resolve_row(i);
+    return logits.data + j*model.vocab.n_tokens();
 }
 
 float * llama_context::get_embeddings() {
@@ -744,22 +735,13 @@ llama_token * llama_context::get_sampled_tokens()  const{
 float * llama_context::get_embeddings_ith(int32_t i) {
     output_reorder();
 
-    try {
-        if (embd.data == nullptr) {
-            throw std::runtime_error("no embeddings");
-        }
-
-        const int64_t j = output_resolve_row(i);
-        const uint32_t n_embd_out = model.hparams.n_embd_out();
-        return embd.data + j*n_embd_out;
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid embeddings id %d, reason: %s\n", __func__, i, err.what());
-#ifndef NDEBUG
-        GGML_ABORT("fatal error");
-#else
-        return nullptr;
-#endif
+    if (embd.data == nullptr) {
+        std::abort();
     }
+
+    const int64_t j = output_resolve_row(i);
+    const uint32_t n_embd_out = model.hparams.n_embd_out();
+    return embd.data + j*n_embd_out;
 }
 
 float * llama_context::get_embeddings_seq(llama_seq_id seq_id) {
@@ -778,14 +760,9 @@ llama_token llama_context::get_sampled_token_ith(int32_t idx) {
         return LLAMA_TOKEN_NULL;
     }
 
-    try {
-        const int64_t row = output_resolve_row(idx);
-        GGML_ASSERT(row < (int64_t) sampling.sampled.size);
-        return sampling.sampled.data[row];
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid backend sampled token id %d, reason: %s\n", __func__, idx, err.what());
-        return LLAMA_TOKEN_NULL;
-    }
+    const int64_t row = output_resolve_row(idx);
+    GGML_ASSERT(row < (int64_t) sampling.sampled.size);
+    return sampling.sampled.data[row];
 }
 
 float * llama_context::get_sampled_probs_ith(int32_t idx) {
@@ -795,16 +772,11 @@ float * llama_context::get_sampled_probs_ith(int32_t idx) {
         return nullptr;
     }
 
-    try {
-        const int64_t row = output_resolve_row(idx);
-        if ((size_t) row >= sampling.probs_count.size() || sampling.probs_count[row] == 0) {
-            return nullptr;
-        }
-        return sampling.probs.data + row*model.vocab.n_tokens();
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid backend sampled probs id %d, reason: %s\n", __func__, idx, err.what());
+    const int64_t row = output_resolve_row(idx);
+    if ((size_t) row >= sampling.probs_count.size() || sampling.probs_count[row] == 0) {
         return nullptr;
     }
+    return sampling.probs.data + row*model.vocab.n_tokens();
 }
 
 float * llama_context::get_sampled_logits_ith(int32_t idx) {
@@ -814,31 +786,21 @@ float * llama_context::get_sampled_logits_ith(int32_t idx) {
         return nullptr;
     }
 
-    try {
-        const int64_t row = output_resolve_row(idx);
-        if ((size_t) row >= sampling.logits_count.size() || sampling.logits_count[row] == 0) {
-            return nullptr;
-        }
-        return sampling.logits.data + row*model.vocab.n_tokens();
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid backend sampled logits id %d, reason: %s\n", __func__, idx, err.what());
+    const int64_t row = output_resolve_row(idx);
+    if ((size_t) row >= sampling.logits_count.size() || sampling.logits_count[row] == 0) {
         return nullptr;
     }
+    return sampling.logits.data + row*model.vocab.n_tokens();
 }
 
 const llama_token * llama_context::get_sampled_candidates_ith(int32_t idx) {
     output_reorder();
 
-    try {
-        const int64_t row = output_resolve_row(idx);
-        if (sampling.candidates.has_data() &&
-            (size_t) row < sampling.candidates_count.size() &&
-            sampling.candidates_count[row] > 0) {
-            return sampling.candidates.data + row*model.vocab.n_tokens();
-        }
-    } catch (const std::exception & err) {
-        // fallback to full vocab list
-        GGML_UNUSED(err);
+    const int64_t row = output_resolve_row(idx);
+    if (sampling.candidates.has_data() &&
+        (size_t) row < sampling.candidates_count.size() &&
+        sampling.candidates_count[row] > 0) {
+        return sampling.candidates.data + row*model.vocab.n_tokens();
     }
 
     return sampling.token_ids_full_vocab.data();
@@ -851,16 +813,11 @@ size_t llama_context::get_sampled_candidates_count(int32_t idx) {
         return 0;
     }
 
-    try {
-        const int64_t row = output_resolve_row(idx);
-        if ((size_t) row >= sampling.candidates_count.size()) {
-            return 0;
-        }
-        return sampling.candidates_count[row];
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid backend sampled candidates count id %d, reason: %s\n", __func__, idx, err.what());
+    const int64_t row = output_resolve_row(idx);
+    if ((size_t) row >= sampling.candidates_count.size()) {
         return 0;
     }
+    return sampling.candidates_count[row];
 }
 
 size_t llama_context::get_sampled_logits_count(int32_t idx) {
@@ -870,16 +827,11 @@ size_t llama_context::get_sampled_logits_count(int32_t idx) {
         return model.vocab.n_tokens();
     }
 
-    try {
-        const int64_t row = output_resolve_row(idx);
-        if ((size_t) row >= sampling.logits_count.size()) {
-            return 0;
-        }
-        return sampling.logits_count[row];
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid backend sampled logits count id %d, reason: %s\n", __func__, idx, err.what());
+    const int64_t row = output_resolve_row(idx);
+    if ((size_t) row >= sampling.logits_count.size()) {
         return 0;
     }
+    return sampling.logits_count[row];
 }
 
 size_t llama_context::get_sampled_probs_count(int32_t idx) {
@@ -889,16 +841,11 @@ size_t llama_context::get_sampled_probs_count(int32_t idx) {
         return 0;
     }
 
-    try {
-        const int64_t row = output_resolve_row(idx);
-        if ((size_t) row >= sampling.probs_count.size()) {
-            return 0;
-        }
-        return sampling.probs_count[row];
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid backend sampled probs count id %d, reason: %s\n", __func__, idx, err.what());
+    const int64_t row = output_resolve_row(idx);
+    if ((size_t) row >= sampling.probs_count.size()) {
         return 0;
     }
+    return sampling.probs_count[row];
 }
 
 
@@ -2138,7 +2085,7 @@ public:
 
     void write(const void * src, size_t size) override {
         if (size > buf_size) {
-            throw std::runtime_error("unexpectedly reached end of buffer");
+            std::abort();
         }
         memcpy(ptr, src, size);
         ptr += size;
@@ -2148,7 +2095,7 @@ public:
 
     void write_tensor(const ggml_tensor * tensor, size_t offset, size_t size) override {
         if (size > buf_size) {
-            throw std::runtime_error("unexpectedly reached end of buffer");
+            std::abort();
         }
         ggml_backend_tensor_get(tensor, ptr, offset, size);
         ptr += size;
@@ -2173,7 +2120,7 @@ public:
     const uint8_t * read(size_t size) override {
         const uint8_t * base_ptr = ptr;
         if (size > buf_size) {
-            throw std::runtime_error("unexpectedly reached end of buffer");
+            std::abort();
         }
         ptr += size;
         size_read += size;
@@ -2247,62 +2194,32 @@ private:
 
 size_t llama_context::state_get_size() {
     llama_io_write_dummy io;
-    try {
-        return state_write_data(io);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error getting state size: %s\n", __func__, err.what());
-        return 0;
-    }
+    return state_write_data(io);
 }
 
 size_t llama_context::state_get_data(uint8_t * dst, size_t size) {
     llama_io_write_buffer io(dst, size);
-    try {
-        return state_write_data(io);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error saving state: %s\n", __func__, err.what());
-        return 0;
-    }
+    return state_write_data(io);
 }
 
 size_t llama_context::state_set_data(const uint8_t * src, size_t size) {
     llama_io_read_buffer io(src, size);
-    try {
-        return state_read_data(io);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading state: %s\n", __func__, err.what());
-        return 0;
-    }
+    return state_read_data(io);
 }
 
 size_t llama_context::state_seq_get_size(llama_seq_id seq_id, llama_state_seq_flags flags) {
     llama_io_write_dummy io;
-    try {
-        return state_seq_write_data(io, seq_id, flags);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error getting state size: %s\n", __func__, err.what());
-        return 0;
-    }
+    return state_seq_write_data(io, seq_id, flags);
 }
 
 size_t llama_context::state_seq_get_data(llama_seq_id seq_id, uint8_t * dst, size_t size, llama_state_seq_flags flags) {
     llama_io_write_buffer io(dst, size);
-    try {
-        return state_seq_write_data(io, seq_id, flags);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error saving state: %s\n", __func__, err.what());
-        return 0;
-    }
+    return state_seq_write_data(io, seq_id, flags);
 }
 
 size_t llama_context::state_seq_set_data(llama_seq_id seq_id, const uint8_t * src, size_t size, llama_state_seq_flags flags) {
     llama_io_read_buffer io(src, size);
-    try {
-        return state_seq_read_data(io, seq_id, flags);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading state: %s\n", __func__, err.what());
-        return 0;
-    }
+    return state_seq_read_data(io, seq_id, flags);
 }
 
 bool llama_context::state_load_file(const char * filepath, llama_token * tokens_out, size_t n_token_capacity, size_t * n_token_count_out) {
@@ -2518,7 +2435,7 @@ size_t llama_context::state_read_data(llama_io_read_i & io) {
         std::string arch_str;
         io.read_string(arch_str);
         if (cur_arch_str != arch_str) {
-            throw std::runtime_error(format("wrong model arch: '%s' instead of '%s'", arch_str.c_str(), cur_arch_str.c_str()));
+            std::abort();
         }
         // TODO: add more info which needs to be identical but which is not verified otherwise
     }
@@ -2531,7 +2448,7 @@ size_t llama_context::state_read_data(llama_io_read_i & io) {
         io.read_to(&n_outputs, sizeof(n_outputs));
 
         if (n_outputs > output_reserve(n_outputs)) {
-            throw std::runtime_error("could not reserve outputs");
+            std::abort();
         }
 
         std::vector<int32_t> output_pos;
@@ -2543,7 +2460,7 @@ size_t llama_context::state_read_data(llama_io_read_i & io) {
             for (int32_t i = 0; i < (int32_t) output_pos.size(); ++i) {
                 int32_t id = output_pos[i];
                 if ((uint32_t) id >= n_batch()) {
-                    throw std::runtime_error(format("invalid output id, %d does not fit in batch size of %u", id, n_batch()));
+                    std::abort();
                 }
                 this->output_ids[id] = i;
             }
@@ -2560,7 +2477,7 @@ size_t llama_context::state_read_data(llama_io_read_i & io) {
         io.read_to(&logits_size, sizeof(logits_size));
 
         if (this->logits.size < logits_size) {
-            throw std::runtime_error("logits buffer too small");
+            std::abort();
         }
 
         if (logits_size) {
@@ -2576,7 +2493,7 @@ size_t llama_context::state_read_data(llama_io_read_i & io) {
         io.read_to(&embd_size, sizeof(embd_size));
 
         if (this->embd.size < embd_size) {
-            throw std::runtime_error("embeddings buffer too small");
+            std::abort();
         }
 
         if (embd_size) {
@@ -2981,14 +2898,8 @@ llama_context * llama_init_from_model(
                        model->hparams.pooling_type, params.pooling_type);
     }
 
-    try {
-        auto * ctx = new llama_context(*model, params);
-        return ctx;
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: failed to initialize the context: %s\n", __func__, err.what());
-    }
-
-    return nullptr;
+    auto * ctx = new llama_context(*model, params);
+    return ctx;
 }
 
 // deprecated
@@ -3339,23 +3250,13 @@ size_t llama_state_set_data(llama_context * ctx, const uint8_t * src, size_t siz
 bool llama_state_load_file(llama_context * ctx, const char * path_session, llama_token * tokens_out, size_t n_token_capacity, size_t * n_token_count_out) {
     ctx->synchronize();
 
-    try {
-        return ctx->state_load_file(path_session, tokens_out, n_token_capacity, n_token_count_out);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading session file: %s\n", __func__, err.what());
-        return false;
-    }
+    return ctx->state_load_file(path_session, tokens_out, n_token_capacity, n_token_count_out);
 }
 
 bool llama_state_save_file(llama_context * ctx, const char * path_session, const llama_token * tokens, size_t n_token_count) {
     ctx->synchronize();
 
-    try {
-        return ctx->state_save_file(path_session, tokens, n_token_count);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error saving session file: %s\n", __func__, err.what());
-        return false;
-    }
+    return ctx->state_save_file(path_session, tokens, n_token_count);
 }
 
 size_t llama_state_seq_get_size(llama_context * ctx, llama_seq_id seq_id) {
@@ -3389,23 +3290,13 @@ size_t llama_state_seq_set_data_ext(llama_context * ctx, const uint8_t * src, si
 size_t llama_state_seq_save_file(llama_context * ctx, const char * filepath, llama_seq_id seq_id, const llama_token * tokens, size_t n_token_count) {
     ctx->synchronize();
 
-    try {
-        return ctx->state_seq_save_file(seq_id, filepath, tokens, n_token_count);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error saving sequence state file: %s\n", __func__, err.what());
-        return 0;
-    }
+    return ctx->state_seq_save_file(seq_id, filepath, tokens, n_token_count);
 }
 
 size_t llama_state_seq_load_file(llama_context * ctx, const char * filepath, llama_seq_id dest_seq_id, llama_token * tokens_out, size_t n_token_capacity, size_t * n_token_count_out) {
     ctx->synchronize();
 
-    try {
-        return ctx->state_seq_load_file(dest_seq_id, filepath, tokens_out, n_token_capacity, n_token_count_out);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading sequence state file: %s\n", __func__, err.what());
-        return 0;
-    }
+    return ctx->state_seq_load_file(dest_seq_id, filepath, tokens_out, n_token_capacity, n_token_count_out);
 }
 
 ///

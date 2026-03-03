@@ -188,7 +188,7 @@ static bool weight_buft_supported(const llama_hparams & hparams, ggml_tensor * w
     };
     ggml_context_ptr ctx_ptr { ggml_init(params) };
     if (!ctx_ptr) {
-        throw std::runtime_error(format("failed to create ggml context"));
+        std::abort();
     }
     ggml_context * ctx = ctx_ptr.get();
 
@@ -363,7 +363,7 @@ static buft_list_t make_cpu_buft_list(const std::vector<ggml_backend_dev_t> & de
     if (use_extra_bufts) {
         auto * cpu_dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
         if (cpu_dev == nullptr) {
-            throw std::runtime_error(format("%s: no CPU backend found", __func__));
+            std::abort();
         }
 
         auto * cpu_reg = ggml_backend_dev_backend_reg(cpu_dev);
@@ -406,7 +406,7 @@ static buft_list_t make_gpu_buft_list(ggml_backend_dev_t dev, llama_split_mode s
                         return i;
                     }
                 }
-                throw std::runtime_error(format("device %s not found in its backend reg", ggml_backend_dev_name(dev)));
+                std::abort();
             }();
             auto * buft = ggml_backend_split_buffer_type_fn(dev_index, tensor_split);
             if (buft != nullptr) {
@@ -487,7 +487,7 @@ void llama_model::load_stats(llama_model_loader & ml) {
 void llama_model::load_arch(llama_model_loader & ml) {
     arch = ml.get_arch();
     if (arch == LLM_ARCH_UNKNOWN) {
-        throw std::runtime_error("unknown model architecture: '" + ml.get_arch_name() + "'");
+        std::abort();
     }
 }
 
@@ -620,7 +620,7 @@ void llama_model::load_hparams(llama_model_loader & ml) {
 
         if (arch == LLM_ARCH_LLAMA || arch == LLM_ARCH_DECI || arch == LLM_ARCH_FALCON || arch == LLM_ARCH_LLAMA_EMBED) {
             if (hparams.n_rot != hparams.n_embd_head_k) {
-                throw std::runtime_error(format("invalid n_rot: %u, expected %u", hparams.n_rot, hparams.n_embd_head_k));
+                std::abort();
             }
         }
     } else {
@@ -2562,7 +2562,7 @@ void llama_model::load_hparams(llama_model_loader & ml) {
                 if (hparams.f_attn_temp_scale != 0.0f) {
                     hparams.n_attn_temp_floor_scale = hparams.n_ctx_orig_yarn;
                     if (hparams.n_attn_temp_floor_scale == 0) {
-                        throw std::runtime_error("invalid n_ctx_orig_yarn for attention temperature scaling");
+                        std::abort();
                     }
                 }
 
@@ -2649,7 +2649,7 @@ void llama_model::load_hparams(llama_model_loader & ml) {
                     default: type = LLM_TYPE_UNKNOWN;
                 }
             } break;
-        default: throw std::runtime_error("unsupported model architecture");
+        default: std::abort();
     }
 
     pimpl->n_bytes = ml.n_bytes;
@@ -2693,7 +2693,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
 
     ggml_backend_dev_t cpu_dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
     if (cpu_dev == nullptr) {
-        throw std::runtime_error(format("%s: no CPU backend found", __func__));
+        std::abort();
     }
 
     // calculate the split points
@@ -2781,7 +2781,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
 
             ggml_context * ctx = ggml_init(params);
             if (!ctx) {
-                throw std::runtime_error(format("failed to create ggml context"));
+                std::abort();
             }
 
             ctx_map.emplace(buft, ctx);
@@ -2815,7 +2815,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
         const int64_t n_ctx_train   = hparams.n_ctx_train;
 
         if (n_expert > 0 && hparams.n_expert_used == 0) {
-            throw std::runtime_error("model has expert layers but no expert layers are used");
+            std::abort();
         }
 
         int n_moved_tensors = 0;
@@ -2830,7 +2830,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                 if (flags & TENSOR_NOT_REQUIRED) {
                     return nullptr;
                 }
-                throw std::runtime_error(format("missing tensor '%s'", tn.str().c_str()));
+                std::abort();
             }
 
             // some models use the token embedding tensor as the output, but since these are used in different layers and with different ops
@@ -2842,11 +2842,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
             }
 
             llm_tensor_info info;
-            try {
-                info = llm_tensor_info_for(tn_tensor);
-            } catch (const std::out_of_range & e) {
-                throw std::runtime_error(format("missing tensor info mapping for %s", tn.str().c_str()));
-            }
+            info = llm_tensor_info_for(tn_tensor);
 
             // skip unused tensors
             if (info.op == GGML_OP_NONE || flags & TENSOR_SKIP) {
@@ -2926,7 +2922,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
             if (!buft) {
                 buft = select_weight_buft(hparams, t_meta, op, *buft_list);
                 if (!buft) {
-                    throw std::runtime_error(format("failed to find a compatible buffer type for tensor %s", tn.str().c_str()));
+                    std::abort();
                 }
             }
 
@@ -2935,7 +2931,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
             if (ml.use_mmap && buft_dev && buft == ggml_backend_dev_host_buffer_type(buft_dev)) {
                 auto * cpu_dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
                 if (!cpu_dev) {
-                    throw std::runtime_error("no CPU backend found");
+                    std::abort();
                 }
                 buft = ggml_backend_dev_buffer_type(cpu_dev);
             }
@@ -3277,7 +3273,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
             case LLM_ARCH_GROK:
                 {
                     if (n_expert == 0) {
-                        throw std::runtime_error("Grok model cannot have zero experts");
+                        std::abort();
                     }
 
                     tok_embd = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD, "weight"), {n_embd, n_vocab}, 0);
@@ -3324,7 +3320,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
             case LLM_ARCH_DBRX:
                 {
                     if (n_expert == 0) {
-                        throw std::runtime_error("DBRX model cannot have zero experts");
+                        std::abort();
                     }
 
                     tok_embd = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD, "weight"), {n_embd, n_vocab}, 0);
@@ -3829,10 +3825,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         layer.ffn_gate_inp = create_tensor(tn(LLM_TENSOR_FFN_GATE_INP, "weight", i), {n_embd, n_expert}, 0);
 
                         if (n_expert == 0) {
-                            throw std::runtime_error("n_expert must be > 0 for QWEN2MOE");
+                            std::abort();
                         }
                         if (n_expert_used == 0) {
-                            throw std::runtime_error("n_expert_used must be > 0 for QWEN2MOE");
+                            std::abort();
                         }
 
                         // MoE branch
@@ -3918,10 +3914,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         layer.ffn_gate_inp = create_tensor(tn(LLM_TENSOR_FFN_GATE_INP, "weight", i), {n_embd, n_expert}, 0);
 
                         if (n_expert == 0) {
-                            throw std::runtime_error("n_expert must be > 0 for QWEN3MOE");
+                            std::abort();
                         }
                         if (n_expert_used == 0) {
-                            throw std::runtime_error("n_expert_used must be > 0 for QWEN3MOE");
+                            std::abort();
                         }
 
                         // MoE branch
@@ -4497,7 +4493,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
 
                     // only an expansion factor of 2 is supported for now
                     if (2 * n_embd != d_inner) {
-                        throw std::runtime_error("only an expansion factor of 2 is supported for now");
+                        std::abort();
                     }
 
                     tok_embd = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD, "weight"), {n_embd, n_vocab}, 0);
@@ -4948,10 +4944,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         layer.ffn_gate_inp = create_tensor(tn(LLM_TENSOR_FFN_GATE_INP, "weight", i), {n_embd, n_expert}, 0);
 
                         if (n_expert == 0) {
-                            throw std::runtime_error("n_expert must be > 0");
+                            std::abort();
                         }
                         if (n_expert_used == 0) {
-                            throw std::runtime_error("n_expert_used must be > 0");
+                            std::abort();
                         }
 
                         // MoE branch
@@ -5091,10 +5087,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                             layer.ffn_gate_inp = create_tensor(tn(LLM_TENSOR_FFN_GATE_INP, "weight", i), {n_embd, n_expert}, 0);
 
                             if (n_expert == 0) {
-                                throw std::runtime_error("n_expert must be > 0");
+                                std::abort();
                             }
                             if (n_expert_used == 0) {
-                                throw std::runtime_error("n_expert_used must be > 0");
+                                std::abort();
                             }
 
                             // MoE branch
@@ -5176,10 +5172,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                             layer.ffn_exp_probs_b = create_tensor(tn(LLM_TENSOR_FFN_EXP_PROBS_B, "bias", i), {n_expert}, TENSOR_NOT_REQUIRED);
 
                             if (n_expert == 0) {
-                                throw std::runtime_error("n_expert must be > 0");
+                                std::abort();
                             }
                             if (n_expert_used == 0) {
-                                throw std::runtime_error("n_expert_used must be > 0");
+                                std::abort();
                             }
 
                             // MoE branch
@@ -5627,7 +5623,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                 {
                     const bool is_mla = hparams.is_mla();
                     if (!is_mla) {
-                        throw std::runtime_error("GLM_DSA architecture requires MLA");
+                        std::abort();
                     }
 
                     // note: these are the actual head sizes you get when treating as MHA or after "decompression" using wv_b for MLA
@@ -5695,10 +5691,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                             layer.ffn_exp_probs_b = create_tensor(tn(LLM_TENSOR_FFN_EXP_PROBS_B, "bias", i), {n_expert}, TENSOR_NOT_REQUIRED);
 
                             if (n_expert == 0) {
-                                throw std::runtime_error("n_expert must be > 0");
+                                std::abort();
                             }
                             if (n_expert_used == 0) {
-                                throw std::runtime_error("n_expert_used must be > 0");
+                                std::abort();
                             }
 
                             // MoE branch
@@ -5963,10 +5959,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                             layer.ffn_exp_probs_b = create_tensor(tn(LLM_TENSOR_FFN_EXP_PROBS_B, "bias", i), {n_expert}, TENSOR_NOT_REQUIRED | flags);
 
                             if (n_expert == 0) {
-                                throw std::runtime_error("n_expert must be > 0");
+                                std::abort();
                             }
                             if (n_expert_used == 0) {
-                                throw std::runtime_error("n_expert_used must be > 0");
+                                std::abort();
                             }
 
                             layer.ffn_gate_exps  = create_tensor(tn(LLM_TENSOR_FFN_GATE_EXPS,  "weight", i), {n_embd, n_ff_exp, n_expert}, flags);
@@ -6218,12 +6214,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         layer.time_mix_g1 = create_tensor(tn(LLM_TENSOR_TIME_MIX_G1, "weight", i), {n_embd, n_lora_gate}, TENSOR_NOT_REQUIRED);
                         layer.time_mix_g2 = create_tensor(tn(LLM_TENSOR_TIME_MIX_G2, "weight", i), {n_lora_gate, n_embd}, TENSOR_NOT_REQUIRED);
 
-                        try {
-                            layer.time_mix_lerp_fused = create_tensor(tn(LLM_TENSOR_TIME_MIX_LERP_FUSED, "weight", i), {n_embd, 1, 1, 6}, 0);
-                        } catch(std::runtime_error & e) {
-                            // ARWKV models may not have gate tensors
-                            layer.time_mix_lerp_fused = create_tensor(tn(LLM_TENSOR_TIME_MIX_LERP_FUSED, "weight", i), {n_embd, 1, 1, 5}, 0);
-                        }
+                        layer.time_mix_lerp_fused = create_tensor(tn(LLM_TENSOR_TIME_MIX_LERP_FUSED, "weight", i), {n_embd, 1, 1, 6}, 0);
 
                         layer.time_mix_k_k = create_tensor(tn(LLM_TENSOR_TIME_MIX_K_K, "weight", i), {attn_hidden_size}, 0);
                         layer.time_mix_k_a = create_tensor(tn(LLM_TENSOR_TIME_MIX_K_A, "weight", i), {attn_hidden_size}, 0);
@@ -6406,10 +6397,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         layer.ffn_gate_inp = create_tensor(tn(LLM_TENSOR_FFN_GATE_INP, "weight", i), {n_embd, n_expert}, 0);
 
                         if (n_expert == 0) {
-                            throw std::runtime_error("n_expert must be > 0");
+                            std::abort();
                         }
                         if (n_expert_used == 0) {
-                            throw std::runtime_error("n_expert_used must be > 0");
+                            std::abort();
                         }
 
                         layer.ffn_gate_exps = create_tensor(tn(LLM_TENSOR_FFN_GATE_EXPS, "weight", i), {  n_embd, n_ff_exp, n_expert}, 0);
@@ -6519,10 +6510,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                             layer.ffn_exp_probs_b = create_tensor(tn(LLM_TENSOR_FFN_EXP_PROBS_B, "bias", i), {n_expert}, TENSOR_NOT_REQUIRED);
 
                             if (n_expert == 0) {
-                                throw std::runtime_error("n_expert must be > 0");
+                                std::abort();
                             }
                             if (n_expert_used == 0) {
-                                throw std::runtime_error("n_expert_used must be > 0");
+                                std::abort();
                             }
 
                             // MoE branch
@@ -7659,7 +7650,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                     }
                 } break;
             default:
-                throw std::runtime_error("unknown architecture");
+                std::abort();
         }
 
         if (n_moved_tensors > 0) {
@@ -7699,7 +7690,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
             // FIXME: workaround for CPU backend buft having a NULL device
             dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
             if (!dev) {
-                throw std::runtime_error(format("%s: no CPU backend found", __func__));
+                std::abort();
             }
         }
         ggml_backend_dev_props props;
@@ -7724,7 +7715,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                 const size_t max_size = ggml_get_max_tensor_size(ctx);
                 ggml_backend_buffer_t buf = ggml_backend_dev_buffer_from_host_ptr(dev, (char *) addr + first, last - first, max_size);
                 if (buf == nullptr) {
-                    throw std::runtime_error(format("unable to allocate %s buffer", ggml_backend_buft_name(buft)));
+                    std::abort();
                 }
                 bufs.emplace_back(buf);
                 buf_map.emplace(idx, buf);
@@ -7740,7 +7731,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                 buf = ggml_backend_alloc_ctx_tensors_from_buft(ctx, buft); // real buffer
             }
             if (buf == nullptr) {
-                throw std::runtime_error(format("unable to allocate %s buffer", ggml_backend_buft_name(buft)));
+                std::abort();
             }
             if (use_mlock && ggml_backend_buffer_is_host(buf)) {
                 pimpl->mlock_bufs.emplace_back(new llama_mlock);
@@ -8085,7 +8076,7 @@ static bool buft_supported(ggml_backend_buffer_type_t buft, ggml_backend_dev_t d
 
     ggml_context_ptr ctx { ggml_init(params) };
     if (!ctx) {
-        throw std::runtime_error(format("failed to create ggml context"));
+        std::abort();
     }
 
     ggml_backend_buffer_ptr buf { ggml_backend_buft_alloc_buffer(buft, 0) };
@@ -8112,7 +8103,7 @@ static ggml_backend_buffer_type_t select_buft(const buft_list_t & buft_list, con
         }
     }
 
-    throw std::runtime_error(format("no suitable buffer type found"));
+    std::abort();
 }
 
 ggml_backend_buffer_type_t llama_model::select_buft(int il) const {

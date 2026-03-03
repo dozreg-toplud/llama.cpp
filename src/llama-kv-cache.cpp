@@ -129,7 +129,7 @@ llama_kv_cache::llama_kv_cache(
 
         ggml_context * ctx = ctx_for_buft(buft);
         if (!ctx) {
-            throw std::runtime_error("failed to create ggml context for kv cache");
+            std::abort();
         }
 
         const bool has_k = true;
@@ -190,7 +190,7 @@ llama_kv_cache::llama_kv_cache(
             buf = ggml_backend_alloc_ctx_tensors_from_buft(ctx.get(), buft); // real buffer
         }
         if (!buf) {
-            throw std::runtime_error("failed to allocate buffer for kv cache");
+            std::abort();
         }
 
         LLAMA_LOG_INFO("%s: %10s KV buffer size = %8.2f MiB\n", __func__, ggml_backend_buffer_name(buf), ggml_backend_buffer_get_size(buf)/1024.0/1024.0);
@@ -1706,7 +1706,7 @@ void llama_kv_cache::state_read(llama_io_read_i & io, llama_seq_id seq_id, llama
     uint32_t n_stream_cur;
     io.read_to(&n_stream_cur, sizeof(n_stream_cur));
     if (n_stream_cur != n_stream) {
-        throw std::runtime_error("n_stream mismatch");
+        std::abort();
     }
 
     for (uint32_t s = 0; s < n_stream; ++s) {
@@ -1731,7 +1731,7 @@ void llama_kv_cache::state_read(llama_io_read_i & io, llama_seq_id seq_id, llama
             } else {
                 seq_rm(seq_id, -1, -1);
             }
-            throw std::runtime_error("failed to restore kv cache");
+            std::abort();
         }
     }
 }

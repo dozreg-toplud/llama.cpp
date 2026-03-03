@@ -157,7 +157,7 @@ static void llama_adapter_lora_init_impl(llama_model & model, const char * path_
 
     gguf_context_ptr ctx_gguf { gguf_init_from_file(path_lora, meta_gguf_params) };
     if (!ctx_gguf) {
-        throw std::runtime_error("failed to load lora adapter file from " + std::string(path_lora));
+        std::abort();
     }
 
     ggml_context_ptr ctx { ctx_init };
@@ -201,18 +201,18 @@ static void llama_adapter_lora_init_impl(llama_model & model, const char * path_
 
         auto general_type = get_kv_str(llm_kv(LLM_KV_GENERAL_TYPE));
         if (general_type != "adapter") {
-            throw std::runtime_error("expect general.type to be 'adapter', but got: " + general_type);
+            std::abort();
         }
 
         auto general_arch_str = get_kv_str(llm_kv(LLM_KV_GENERAL_ARCHITECTURE));
         auto general_arch = llm_arch_from_string(general_arch_str);
         if (general_arch != model.arch) {
-            throw std::runtime_error("model arch and LoRA arch mismatch");
+            std::abort();
         }
 
         auto adapter_type = get_kv_str(llm_kv(LLM_KV_ADAPTER_TYPE));
         if (adapter_type != "lora") {
-            throw std::runtime_error("expect adapter.type to be 'lora', but got: " + adapter_type);
+            std::abort();
         }
 
         adapter.alpha = get_kv_f32(llm_kv(LLM_KV_ADAPTER_LORA_ALPHA));
@@ -222,11 +222,11 @@ static void llama_adapter_lora_init_impl(llama_model & model, const char * path_
         const int kid = gguf_find_key(ctx_gguf.get(), key.c_str());
         if (kid >= 0) {
             if (gguf_get_kv_type(ctx_gguf.get(), kid) != GGUF_TYPE_ARRAY) {
-                throw std::runtime_error("invalid gguf type for " + key);
+                std::abort();
             }
             const auto arr_type = gguf_get_arr_type(ctx_gguf.get(), kid);
             if (arr_type != GGUF_TYPE_UINT32) {
-                throw std::runtime_error("invalid gguf element type for " + key);
+                std::abort();
             }
             const size_t seq_len = gguf_get_arr_n(ctx_gguf.get(), kid);
             const void * data = gguf_get_arr_data(ctx_gguf.get(), kid);
@@ -289,7 +289,7 @@ static void llama_adapter_lora_init_impl(llama_model & model, const char * path_
             // for now, we don't really care because most adapters still work fine without it
             continue;
         } else {
-            throw std::runtime_error("LoRA tensor '" + name + "' has unexpected suffix");
+            std::abort();
         }
     }
 
@@ -300,7 +300,7 @@ static void llama_adapter_lora_init_impl(llama_model & model, const char * path_
     {
         auto * cpu_dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
         if (!cpu_dev) {
-            throw std::runtime_error(format("%s: no CPU backend found", __func__));
+            std::abort();
         }
         auto * cpu_reg = ggml_backend_dev_backend_reg(cpu_dev);
 
@@ -323,13 +323,13 @@ static void llama_adapter_lora_init_impl(llama_model & model, const char * path_
         bool is_token_embd = str_endswith(name, "token_embd.weight");
 
         if (!w.a || !w.b) {
-            throw std::runtime_error("LoRA tensor pair for '" + name + "' is missing one component");
+            std::abort();
         }
 
         // device buft and device ctx
         const auto * model_tensor = model.get_tensor(name.c_str());
         if (!model_tensor) {
-            throw std::runtime_error("LoRA tensor '" + name + "' does not exist in base model (hint: maybe wrong base model?)");
+            std::abort();
         }
 
         auto * buft = ggml_backend_buffer_get_type(model_tensor->buffer);
@@ -341,7 +341,7 @@ static void llama_adapter_lora_init_impl(llama_model & model, const char * path_
 
                 auto * cpu_dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
                 if (!cpu_dev) {
-                    throw std::runtime_error(format("%s: no CPU backend found", __func__));
+                    std::abort();
                 }
                 buft = ggml_backend_dev_buffer_type(cpu_dev);
 
@@ -356,14 +356,14 @@ static void llama_adapter_lora_init_impl(llama_model & model, const char * path_
         if (is_token_embd) {
             // expect B to be non-transposed, A and B are flipped; see llm_build_inp_embd()
             if (model_tensor->ne[0] != w.b->ne[1] || model_tensor->ne[1] != w.a->ne[1]) {
-                throw std::runtime_error("tensor '" + name + "' has incorrect shape (hint: maybe wrong base model?)");
+                std::abort();
             }
         } else {
             if (model_tensor->ne[0] != w.a->ne[0] || model_tensor->ne[1] != w.b->ne[1]) {
-                throw std::runtime_error("tensor '" + name + "' has incorrect shape (hint: maybe wrong base model?)");
+                std::abort();
             }
             if (w.a->ne[1] != w.b->ne[0]) {
-                throw std::runtime_error("lora_a tensor is not transposed (hint: adapter from \"finetune\" example is no longer supported)");
+                std::abort();
             }
         }
 
@@ -384,7 +384,7 @@ static void llama_adapter_lora_init_impl(llama_model & model, const char * path_
             ggml_context * ctx_dev = it.second;
             ggml_backend_buffer_ptr buf { ggml_backend_alloc_ctx_tensors_from_buft(ctx_dev, buft) };
             if (!buf) {
-                throw std::runtime_error("failed to allocate buffer for lora adapter\n");
+                std::abort();
             }
             LLAMA_LOG_INFO("%s: %10s LoRA buffer size = %8.2f MiB\n", __func__, ggml_backend_buffer_name(buf.get()), ggml_backend_buffer_get_size(buf.get())/1024.0/1024.0);
             adapter.bufs.emplace_back(std::move(buf));
@@ -420,16 +420,8 @@ static void llama_adapter_lora_init_impl(llama_model & model, const char * path_
 llama_adapter_lora * llama_adapter_lora_init(llama_model * model, const char * path_lora) {
     llama_adapter_lora * adapter = new llama_adapter_lora();
 
-    try {
-        llama_adapter_lora_init_impl(*model, path_lora, *adapter);
-        return adapter;
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: failed to apply lora adapter: %s\n", __func__, err.what());
-
-        delete adapter;
-    }
-
-    return nullptr;
+    llama_adapter_lora_init_impl(*model, path_lora, *adapter);
+    return adapter;
 }
 
 int32_t llama_adapter_meta_val_str(const llama_adapter_lora * adapter, const char * key, char * buf, size_t buf_size) {

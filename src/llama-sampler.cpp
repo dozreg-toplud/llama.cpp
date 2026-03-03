@@ -27,35 +27,35 @@ struct ring_buffer {
 
     T & front() {
         if (sz == 0) {
-            throw std::runtime_error("ring buffer is empty");
+            std::abort();
         }
         return data[first];
     }
 
     const T & front() const {
         if (sz == 0) {
-            throw std::runtime_error("ring buffer is empty");
+            std::abort();
         }
         return data[first];
     }
 
     T & back() {
         if (sz == 0) {
-            throw std::runtime_error("ring buffer is empty");
+            std::abort();
         }
         return data[pos];
     }
 
     const T & back() const {
         if (sz == 0) {
-            throw std::runtime_error("ring buffer is empty");
+            std::abort();
         }
         return data[pos];
     }
 
     void push_back(const T & value) {
         if (capacity == 0) {
-            throw std::runtime_error("ring buffer: capacity is zero");
+            std::abort();
         }
 
         if (sz == capacity) {
@@ -70,7 +70,7 @@ struct ring_buffer {
 
     T pop_front() {
         if (sz == 0) {
-            throw std::runtime_error("ring buffer is empty");
+            std::abort();
         }
         T value = data[first];
         first = (first + 1) % capacity;
@@ -80,21 +80,21 @@ struct ring_buffer {
 
     //T & operator[](size_t i) {
     //    if (i >= sz) {
-    //        throw std::runtime_error("ring buffer: index out of bounds");
+    //        std::abort();
     //    }
     //    return data[(first + i) % capacity];
     //}
 
     //const T & at(size_t i) const {
     //    if (i >= sz) {
-    //        throw std::runtime_error("ring buffer: index out of bounds");
+    //        std::abort();
     //    }
     //    return data[(first + i) % capacity];
     //}
 
     const T & rat(size_t i) const {
         if (i >= sz) {
-            throw std::runtime_error("ring buffer: index out of bounds");
+            std::abort();
         }
         return data[(first + sz - i - 1) % capacity];
     }
@@ -573,7 +573,7 @@ static bool llama_sampler_backend_support(
 
     ggml_context_ptr ctx_ptr { ggml_init(params) };
     if (!ctx_ptr) {
-        throw std::runtime_error(format("failed to create ggml context"));
+        std::abort();
     }
 
     ggml_context * ctx = ctx_ptr.get();

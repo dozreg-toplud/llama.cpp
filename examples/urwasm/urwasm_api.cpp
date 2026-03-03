@@ -1,11 +1,9 @@
-// examples/memload_api.cpp
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
 
-#include "llama.h"
 #include "llama-model.h"
 
 
@@ -33,25 +31,17 @@ extern "C" void llama_cpp_init_from_gguf_bytes(uint8_t *bytes, uint32_t len)
     mparams.use_mmap     = false;
     mparams.use_mlock    = false;
 
-    try {
-        g_model = llama_model_load_from_bytes(bytes, len, mparams);
-        if (g_model == 0) {
-            fprintf(stderr, "llama_model_load_from_bytes returned null\r\n");
-            return;
-        }
-    }
-    catch (const std::exception & e) {
-        fprintf(stderr, "Exception: %s\n", e.what());
-        return;
-    }
-    catch (...) {
-        fprintf(stderr, "Unknown exception\n");
+    g_model = llama_model_load_from_bytes(bytes, len, mparams);
+    if (g_model == 0) {
+        fprintf(stderr, "llama_model_load_from_bytes returned null\r\n");
         return;
     }
 
     llama_context_params cparams = llama_context_default_params();
     cparams.n_ctx   = 512;
     cparams.n_batch = 512;
+    cparams.n_threads = 1;
+    cparams.n_threads_batch = 1;
 
     g_ctx = llama_init_from_model(g_model, cparams);
 }

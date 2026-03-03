@@ -818,7 +818,7 @@ struct llm_tokenizer_ugm : llm_tokenizer {
             uint32_t xcda_blob_size = *(const uint32_t *) &precompiled_charsmap[0];
             charsmap_offset += sizeof(xcda_blob_size);
             if (xcda_blob_size + charsmap_offset >= precompiled_charsmap.size()) {
-                throw std::runtime_error("Index out of array bounds in precompiled charsmap!");
+                std::abort();
             }
 
             // Next xcda_blob_size bytes contain entries of XOR-compressed compact
@@ -1064,7 +1064,7 @@ private:
     private:
         uint32_t get_node(size_t index) {
             if (index >= xcda_array_size) {
-                throw std::runtime_error("Index out of array bounds in XCDA array!");
+                std::abort();
             }
             return xcda_array[index];
         }
@@ -1132,22 +1132,17 @@ private:
         if (longest_prefix_length > 0) {
             // we have a match, so return the replacement sequence
             if (longest_prefix_offset >= tokenizer.prefix_replacements_size) {
-                throw std::runtime_error("Index out of array bounds in precompiled charsmap!");
+                std::abort();
             }
             const char * prefix_replacement = &(tokenizer.prefix_replacements)[longest_prefix_offset];
             return { prefix_replacement, strlen(prefix_replacement), longest_prefix_length };
         }
 
         // check if the input prefix contains a valid sequence of UTF-8 code units
-        try {
-            // if yes, return this sequence unmodified
-            size_t prefix_offset = input_offset;
-            unicode_cpt_from_utf8(input, prefix_offset);
-            return { &input[input_offset], prefix_offset - input_offset, prefix_offset - input_offset };
-        } catch (std::invalid_argument & /*ex*/) {
-            // if no, consume 1 byte and return U+FFFD - REPLACEMENT CHARACTER
-            return { "\xEF\xBF\xBD", 3, 1 };
-        }
+        // if yes, return this sequence unmodified
+        size_t prefix_offset = input_offset;
+        unicode_cpt_from_utf8(input, prefix_offset);
+        return { &input[input_offset], prefix_offset - input_offset, prefix_offset - input_offset };
     }
 
     const llama_vocab & vocab;
@@ -1314,7 +1309,7 @@ struct llm_tokenizer_plamo2 : llm_tokenizer {
         // Check that all byte tokens are set
         for (int i = 0; i < 256; ++i) {
             if (bytes_[i] == 0) {
-                throw std::runtime_error("Byte token for <0x" + std::to_string(i) + "> is not set");
+                std::abort();
             }
         }
 
@@ -1782,7 +1777,7 @@ void llama_vocab::impl::load(llama_model_loader & ml, const LLM_KV & kv) {
 
             if (merges_keyidx == -1) {
                 if (!is_kimi_k2) {
-                    throw std::runtime_error("cannot find tokenizer merges in model file\n");
+                    std::abort();
                 }
                 // Kimi-K2 doesn't need merges, skip
                 LLAMA_LOG_INFO("%s: Kimi-K2 tokenizer detected, skipping BPE merges\n", __func__);
@@ -1864,7 +1859,7 @@ void llama_vocab::impl::load(llama_model_loader & ml, const LLM_KV & kv) {
             special_pad_id = 3;  // <|plamo:pad|>
             special_mask_id = LLAMA_TOKEN_NULL;
         } else {
-            throw std::runtime_error(format("unknown tokenizer: '%s'", tokenizer_model.c_str()));
+            std::abort();
         }
 
         // for now, only BPE models have pre-tokenizers
@@ -2090,7 +2085,7 @@ void llama_vocab::impl::load(llama_model_loader & ml, const LLM_KV & kv) {
                 pre_type = LLAMA_VOCAB_PRE_TYPE_SOLAR_OPEN;
                 clean_spaces = false;
             } else {
-                throw std::runtime_error(format("unknown pre-tokenizer type: '%s'", tokenizer_pre.c_str()));
+                std::abort();
             }
         } else if (type == LLAMA_VOCAB_TYPE_SPM) {
             pre_type = LLAMA_VOCAB_PRE_TYPE_DEFAULT;
@@ -2125,7 +2120,7 @@ void llama_vocab::impl::load(llama_model_loader & ml, const LLM_KV & kv) {
 
     const int token_idx = gguf_find_key(ctx, kv(LLM_KV_TOKENIZER_LIST).c_str());
     if (token_idx == -1) {
-        throw std::runtime_error("cannot find tokenizer vocab in model file\n");
+        std::abort();
     }
 
     const float * scores = nullptr;
@@ -2177,12 +2172,7 @@ void llama_vocab::impl::load(llama_model_loader & ml, const LLM_KV & kv) {
 
     // determine the newline token: LLaMA "<0x0A>" == 10 == '\n', Falcon 193 == '\n'
     if (type == LLAMA_VOCAB_TYPE_SPM) {
-        try {
-            linefeed_id = vocab.byte_to_token('\n');
-        } catch (const std::exception & e) {
-            LLAMA_LOG_WARN("%s: SPM vocabulary, but newline token not found: %s! Using special_pad_id instead.", __func__, e.what());
-            linefeed_id = special_pad_id;
-        }
+        linefeed_id = vocab.byte_to_token('\n');
     } else if (type == LLAMA_VOCAB_TYPE_WPM) {
         linefeed_id = special_pad_id;
     } else if (type == LLAMA_VOCAB_TYPE_RWKV) {
@@ -2928,15 +2918,7 @@ static std::string llama_decode_text(const std::string & text) {
     const auto cpts = unicode_cpts_from_utf8(text);
     for (const auto cpt : cpts) {
         const auto utf8 = unicode_cpt_to_utf8(cpt);
-        try {
-            decoded_text += unicode_utf8_to_byte(utf8);
-        } catch (const std::out_of_range & /*e*/) {
-            decoded_text += "[UNK_BYTE_0x";
-            for (const auto c : utf8) {
-                decoded_text += format("%02x", (uint8_t) c);
-            }
-            decoded_text += text + "]";
-        }
+        decoded_text += unicode_utf8_to_byte(utf8);
     }
 
     return decoded_text;
